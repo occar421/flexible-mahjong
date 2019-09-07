@@ -1,2 +1,2 @@
-# 4s17-mahjong
-4 suites 17 tiles mahjong engine
+# 4suites-17tiles-jp-mahjong
+4 suites 17 tiles Japanese style mahjong
