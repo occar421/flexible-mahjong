@@ -9,3 +9,6 @@ edition = "2018"
 [dependencies]
 rand = "0.7"
 itertools = "0.8"
+
+[dev-dependencies]
+colored = "1.8"

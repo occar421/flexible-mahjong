@@ -1,5 +1,5 @@
 use self::super::Player;
-use crate::game::{TurnChoice, PlayerHand, MeldChoice};
+use crate::game::{TurnChoice, MeldChoice};
 use crate::tile::Tile;
 use std::marker::PhantomData;
 
@@ -18,7 +18,7 @@ impl<TTile: Tile> InteractivePlayer<TTile> {
 impl<TTile: Tile> Player for InteractivePlayer<TTile> {
     type Tile = TTile;
 
-    fn set_dealt_hand(&self, hand: &PlayerHand<Self::Tile>) {
+    fn set_dealt_tiles(&self, tiles: &Vec<Self::Tile>) {
         unimplemented!()
     }
 

@@ -1,7 +1,7 @@
 mod tile {
     use std::cmp::Ordering;
 
-    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+    #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     pub(crate) enum Suite {
         /// Red, East, M
         /// 中、東、萬子
@@ -10,16 +10,16 @@ mod tile {
         /// 發、南、索子
         Green,
         /// White, West, P
-        /// 白、西、筒子
+        /// 囗、西、筒子
         White,
         /// Black, North, ?
-        /// 黒、北、？子
+        /// ？、北、？子
         Black,
     }
 
     impl crate::tile::Suite for Suite {}
 
-    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+    #[derive(Copy, Clone, Eq, PartialEq)]
     pub(crate) enum Tile {
         /// 数牌
         Number(Suite, u8),
@@ -149,10 +149,10 @@ mod game {
         }
 
         fn discard(&mut self, tile: &Tile, _: usize) {
-            match self.closed_tiles.remove(tile) {
-                true => return,
-                false => panic!("Can't discard because it doesn't have {:#?}", tile),
+            if self.closed_tiles.remove(tile) {
+                return;
             }
+            panic!("Can't discard because they don't have it");
         }
 
         fn add_tile_to_discard_pile(&mut self, tile: &Tile, is_used_in_meld: bool) {
@@ -210,15 +210,22 @@ mod game {
             // ドラ表示牌 数
             let mut n_reward_indication_tiles = 1;
 
+            let players_tiles: [Vec<_>; N_PLAYER] = [
+                wall.drain(0..16).collect(),
+                wall.drain(0..16).collect(),
+                wall.drain(0..16).collect(),
+                wall.drain(0..16).collect(),
+            ];
+
             // 配牌
             let mut hands: [_; N_PLAYER] = [
-                PlayerHandJp4s17t::new(wall.drain(0..16)),
-                PlayerHandJp4s17t::new(wall.drain(0..16)),
-                PlayerHandJp4s17t::new(wall.drain(0..16)),
-                PlayerHandJp4s17t::new(wall.drain(0..16)),
+                PlayerHandJp4s17t::new(players_tiles[0].clone()),
+                PlayerHandJp4s17t::new(players_tiles[1].clone()),
+                PlayerHandJp4s17t::new(players_tiles[2].clone()),
+                PlayerHandJp4s17t::new(players_tiles[3].clone()),
             ];
             for i in 0..N_PLAYER {
-                self.state.players[i].set_dealt_hand(&hands[i]);
+                self.state.players[i].set_dealt_tiles(&players_tiles[i]);
             }
 
             let mut turn_index = self.state.dealer_index;
@@ -262,10 +269,13 @@ mod game {
     #[cfg(test)]
     mod tests {
         use std::rc::Rc;
-        use crate::game::{Game, MeldChoice, PlayerHand, TurnChoice};
+        use crate::game::{Game, MeldChoice, TurnChoice};
         use crate::players::Player;
         use super::GameJp4s17t;
-        use super::super::tile::Tile;
+        use super::super::tile::{Tile, Suite};
+        use itertools::Itertools;
+        use std::fmt::{Debug, Formatter, Error};
+        use colored::*;
 
         pub struct OnlyDiscardFakePlayer;
 
@@ -275,10 +285,45 @@ mod game {
             }
         }
 
+        impl Debug for Tile {
+            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+                const NUMBERS: [&str; 9] = ["一", "二", "三", "四", "伍", "六", "七", "八", "九"];
+                const CORDS: [&str; 9] = ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
+                const COINS: [&str; 9] = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+                const UNKNOWNS: [&str; 9] = ["１⃣", "２⃣", "３⃣", "４⃣", "５⃣", "６⃣", "７⃣", "８⃣", "９⃣"];
+
+                write!(f, "{}", match self {
+                    Tile::Number(s, n) => match s {
+                        Suite::Red => format!("{}", NUMBERS[*n as usize - 1]).red(),
+                        Suite::Green => format!("{}", CORDS[*n as usize - 1]).green().underline(),
+                        Suite::White => format!("{}", COINS[*n as usize - 1]).yellow(),
+                        Suite::Black => format!("{}", UNKNOWNS[*n as usize - 1]).magenta(),
+                    }
+                    ,
+                    Tile::Wind(s) => match s {
+                        Suite::Red => "東",
+                        Suite::Green => "南",
+                        Suite::White => "西",
+                        Suite::Black => "北",
+                    }.to_string().cyan(),
+                    Tile::Symbol(s) => match s {
+                        Suite::Red => "中".red(),
+                        Suite::Green => "發".green(),
+                        Suite::White => "　⃣".yellow(),
+                        Suite::Black => "？".magenta(),
+                    },
+                })
+            }
+        }
+
         impl Player for OnlyDiscardFakePlayer {
             type Tile = Tile;
 
-            fn set_dealt_hand(&self, _: &dyn PlayerHand<Self::Tile>) {}
+            fn set_dealt_tiles(&self, tiles: &Vec<Self::Tile>) {
+                let mut tiles = tiles.clone();
+                tiles.sort_unstable();
+                println!("{}", tiles.into_iter().map(|t| format!("{:#?}", t)).join(" "));
+            }
 
             fn draw(&self, drawn_tile: &Self::Tile, _: &Vec<TurnChoice<Tile>>) -> TurnChoice<Tile> {
                 TurnChoice::Discard(*drawn_tile, 0)
