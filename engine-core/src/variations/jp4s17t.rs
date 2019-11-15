@@ -3,12 +3,12 @@ mod tile {
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     pub(crate) enum Suite {
-        /// Red, East, M
-        /// 中、東、萬子
-        Red,
-        /// Green, South, S
-        /// 發、南、索子
+        /// Green, East, S
+        /// 發、東、索子
         Green,
+        /// Red, South, M
+        /// 中、南、萬子
+        Red,
         /// White, West, P
         /// 囗、西、筒子
         White,
