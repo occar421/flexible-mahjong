@@ -62,9 +62,9 @@ mod tile {
 }
 
 mod structure {
+    use std::borrow::Borrow;
     use std::collections::BTreeMap;
     use std::iter::FromIterator;
-    use std::borrow::Borrow;
     use itertools::Itertools;
 
     pub(crate) struct MultiBTreeSet<T> {
@@ -112,13 +112,15 @@ mod structure {
 }
 
 mod game {
-    use crate::players::Player;
-    use crate::game::{Game, GameState, TurnChoice, PlayerHand, N_PLAYER, Meld, MeldChoice};
-    use super::tile::{Suite, Tile};
-    use super::structure::MultiBTreeSet;
     use std::iter::FromIterator;
     use std::rc::Rc;
     use rand::Rng;
+
+    use crate::game::{Game, GameState, Meld, MeldChoice, N_PLAYER, PlayerHand, TurnChoice};
+    use crate::players::Player;
+
+    use super::structure::MultiBTreeSet;
+    use super::tile::{Suite, Tile};
 
     const N_TILES: u8 = 9 * 4 * 4 + 4 * 4 + 4 * 4;
 
@@ -159,9 +161,14 @@ mod game {
             self.discard_pile.push((*tile, is_used_in_meld));
         }
 
+        // is 聴牌
         fn is_ready(&self) -> bool {
             false
         }
+    }
+
+    enum MatchResult {
+        RunningOut(Vec<usize>)
     }
 
     struct GameJp4s17t<P: Player + Sized> {
@@ -173,6 +180,60 @@ mod game {
             GameJp4s17t {
                 state: GameState::new(players)
             }
+        }
+
+        // can we generalize this function like match_jp ?
+        fn match_core(&mut self, wall: &Vec<Tile>, dead_wall: &Vec<Tile>, players_tiles: &[&Vec<Tile>; N_PLAYER]) -> MatchResult {
+            let mut wall = wall.clone();
+            let mut dead_wall = dead_wall.clone();
+
+            // ドラ牌
+            let reward_indication_tiles = dead_wall.split_off(4).chunks(2).map(|c| (c[0], c[1])).collect::<Vec<_>>();
+
+            // 嶺上牌
+            let supplemental_tiles = dead_wall;
+
+            let mut hands: [_; N_PLAYER] = [
+                PlayerHandJp4s17t::new(players_tiles[0].clone()),
+                PlayerHandJp4s17t::new(players_tiles[1].clone()),
+                PlayerHandJp4s17t::new(players_tiles[2].clone()),
+                PlayerHandJp4s17t::new(players_tiles[3].clone()),
+            ];
+
+            for i in 0..N_PLAYER {
+                self.state.players[i].set_dealt_tiles(&players_tiles[i]);
+            }
+
+            // ドラ表示牌 数
+            let mut n_rewards = 1;
+
+            let mut turn_index = self.state.dealer_index;
+            // start game
+            while let Some(drawn_tile) = wall.pop() {
+                let player = &self.state.players[turn_index];
+                let hand = &mut hands[turn_index];
+                let options = hand.get_options_on_drawing(&drawn_tile);
+
+                // 自摸
+                let choice = player.draw(&drawn_tile, &options);
+
+                match choice {
+                    TurnChoice::Discard(discarded_tile, index) => {
+                        hand.discard(&discarded_tile, index);
+                        hand.add_tile_to_discard_pile(&discarded_tile, false);
+                    }
+                    _ => unimplemented!()
+                }
+
+                turn_index = (turn_index + 1) % N_PLAYER;
+            }
+
+            // running out, 流局
+            MatchResult::RunningOut((0..N_PLAYER)
+                .map(|i| (i, hands[i].is_ready()))
+                .filter(|(_, r)| *r)
+                .map(|(i, _)| i)
+                .collect())
         }
     }
 
@@ -205,77 +266,43 @@ mod game {
             };
 
             // 王牌
-            let mut dead_wall: Vec<_> = wall.drain(0..14).collect();
-
-            // ドラ表示牌 数
-            let mut n_reward_indication_tiles = 1;
-
-            let players_tiles: [Vec<_>; N_PLAYER] = [
-                wall.drain(0..16).collect(),
-                wall.drain(0..16).collect(),
-                wall.drain(0..16).collect(),
-                wall.drain(0..16).collect(),
-            ];
+            let dead_wall: Vec<_> = wall.drain(0..14).collect();
 
             // 配牌
-            let mut hands: [_; N_PLAYER] = [
-                PlayerHandJp4s17t::new(players_tiles[0].clone()),
-                PlayerHandJp4s17t::new(players_tiles[1].clone()),
-                PlayerHandJp4s17t::new(players_tiles[2].clone()),
-                PlayerHandJp4s17t::new(players_tiles[3].clone()),
+            let players_tiles: [&Vec<_>; N_PLAYER] = [
+                &wall.drain(0..16).collect(),
+                &wall.drain(0..16).collect(),
+                &wall.drain(0..16).collect(),
+                &wall.drain(0..16).collect(),
             ];
-            for i in 0..N_PLAYER {
-                self.state.players[i].set_dealt_tiles(&players_tiles[i]);
-            }
 
-            let mut turn_index = self.state.dealer_index;
-            // start game
-            while let Some(drawn_tile) = wall.pop() {
-                let player = &self.state.players[turn_index];
-                let hand = &mut hands[turn_index];
-                let options = hand.get_options_on_drawing(&drawn_tile);
+            let wall = wall;
 
-                // 自摸
-                let choice = player.draw(&drawn_tile, &options);
+            let result = self.match_core(&wall, &dead_wall, &players_tiles);
 
-                match choice {
-                    TurnChoice::Discard(discarded_tile, index) => {
-                        hand.discard(&discarded_tile, index);
-                        hand.add_tile_to_discard_pile(&discarded_tile, false);
+            match result {
+                MatchResult::RunningOut(ready_players) =>
+                    if !ready_players.iter().find(|&&i| i == self.state.dealer_index).is_none() {
+                        // move dealer if it was not ready
+                        self.state.dealer_index = (self.state.dealer_index + 1) & N_PLAYER;
                     }
-                    _ => unimplemented!()
-                }
-
-                turn_index = (turn_index + 1) % N_PLAYER;
-            }
-
-            // running out, 流局
-            let readinesses: Vec<_> = (0..N_PLAYER).map(|i| hands[i].is_ready()).collect();
-            match readinesses.iter().filter(|&&r| r).count() {
-                0 | 4 => {} // Do nothing
-                1 => unimplemented!(),
-                2 => unimplemented!(),
-                3 => unimplemented!(),
-                _ => unreachable!()
-            }
-
-            // move dealer if it was not ready
-            if !readinesses[self.state.dealer_index] {
-                self.state.dealer_index = (self.state.dealer_index + 1) & N_PLAYER;
             }
         }
     }
 
     #[cfg(test)]
     mod tests {
+        use std::fmt::{Debug, Error, Formatter};
         use std::rc::Rc;
+
+        use colored::*;
+        use itertools::Itertools;
+
         use crate::game::{Game, MeldChoice, TurnChoice};
         use crate::players::Player;
+
         use super::GameJp4s17t;
-        use super::super::tile::{Tile, Suite};
-        use itertools::Itertools;
-        use std::fmt::{Debug, Formatter, Error};
-        use colored::*;
+        use super::super::tile::{Suite, Tile};
 
         pub struct OnlyDiscardFakePlayer;
 
@@ -344,6 +371,31 @@ mod game {
             ];
             let mut m = GameJp4s17t::new(players);
             m.start_a_match();
+        }
+
+        #[test]
+        fn test_match_core() {
+            use super::super::tile::Tile::{Number, Wind, Symbol};
+            use super::super::tile::Suite::{Green, Red, White, Black};
+
+            let players = [
+                Rc::new(OnlyDiscardFakePlayer::new()),
+                Rc::new(OnlyDiscardFakePlayer::new()),
+                Rc::new(OnlyDiscardFakePlayer::new()),
+                Rc::new(OnlyDiscardFakePlayer::new()),
+            ];
+            let mut m = GameJp4s17t::new(players);
+            let mut all_green: Vec<_> = [2, 3, 4, 6, 8].iter().map(|&n| Number(Green, n)).map(|t| vec![t, t, t]).flatten().collect();
+            all_green.extend(vec![Symbol(Green)]);
+            let sixteen_orphans = vec![
+                Number(Green, 1), Number(Green, 9), Number(Red, 1), Number(Red, 9), Number(White, 1), Number(White, 9), Number(Black, 1), Number(Black, 9),
+                Wind(Green), Wind(Red), Wind(White), Wind(Black), Number(Green, 1) /*Symbol(Green)*/, Symbol(Red), Symbol(White), Symbol(Black)
+            ];
+            let mut four_winds: Vec<_> = [Green, Red, White, Black].iter().map(|&s| Wind(s)).map(|t| vec![t, t, t]).flatten().collect();
+            four_winds.extend(vec![Number(Red, 2), Number(Red, 2), Number(Red, 2), Number(Red, 3)]);
+            let mut four_dragons: Vec<_> = [Green, Red, White, Black].iter().map(|&s| Symbol(s)).map(|t| vec![t, t, t]).flatten().collect();
+            four_dragons.extend(vec![Number(White, 2), Number(White, 2), Number(White, 2), Number(White, 3)]);
+            m.match_core(&vec![], &vec![], &[&all_green, &sixteen_orphans, &four_winds, &four_dragons]);
         }
     }
 }
