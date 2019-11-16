@@ -1,5 +1,8 @@
 mod tile {
     use std::cmp::Ordering;
+    use colored::*;
+    use std::fmt::{Debug, Error, Formatter};
+
 
     #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
     pub(crate) enum Suite {
@@ -59,6 +62,37 @@ mod tile {
     }
 
     impl crate::tile::Tile for Tile { type Suite = Suite; }
+
+    impl Debug for Tile {
+        fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+            const NUMBERS: [&str; 9] = ["一", "二", "三", "四", "伍", "六", "七", "八", "九"];
+            const CORDS: [&str; 9] = ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
+            const COINS: [&str; 9] = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+            const UNKNOWNS: [&str; 9] = ["１⃣", "２⃣", "３⃣", "４⃣", "５⃣", "６⃣", "７⃣", "８⃣", "９⃣"];
+
+            write!(f, "{}", match self {
+                Tile::Number(s, n) => match s {
+                    Suite::Red => format!("{}", NUMBERS[*n as usize - 1]).red(),
+                    Suite::Green => format!("{}", CORDS[*n as usize - 1]).green().underline(),
+                    Suite::White => format!("{}", COINS[*n as usize - 1]).yellow(),
+                    Suite::Black => format!("{}", UNKNOWNS[*n as usize - 1]).magenta(),
+                }
+                ,
+                Tile::Wind(s) => match s {
+                    Suite::Red => "東",
+                    Suite::Green => "南",
+                    Suite::White => "西",
+                    Suite::Black => "北",
+                }.to_string().cyan(),
+                Tile::Symbol(s) => match s {
+                    Suite::Red => "中".red(),
+                    Suite::Green => "發".green(),
+                    Suite::White => "　⃣".yellow(),
+                    Suite::Black => "？".magenta(),
+                },
+            })
+        }
+    }
 }
 
 mod structure {
@@ -71,7 +105,7 @@ mod structure {
         map: BTreeMap<T, usize>
     }
 
-    impl<T: Ord> MultiBTreeSet<T> {
+    impl<T: Ord + Clone> MultiBTreeSet<T> {
         pub fn insert(&mut self, value: T) -> bool {
             if let Some(n) = self.map.get_mut(&value) {
                 *n += 1;
@@ -95,6 +129,14 @@ mod structure {
                 false
             }
         }
+
+        pub fn get_by_buckets(&self) -> std::collections::btree_map::Iter<T, usize> {
+            self.map.iter()
+        }
+
+        pub fn clone(&self) -> Self {
+            MultiBTreeSet { map: self.map.clone() }
+        }
     }
 
     impl<T: Ord + Copy> FromIterator<T> for MultiBTreeSet<T> {
@@ -106,6 +148,106 @@ mod structure {
                         .into_iter()
                         .map(|(k, gv)| (k, gv.count()))
                 )
+            }
+        }
+    }
+}
+
+mod hands {
+    use crate::hands::{Hand as HandBase, HandTestResult};
+    use super::tile::Tile;
+    use itertools::Itertools;
+    use super::game::PlayerHandJp4s17t;
+    use std::collections::HashMap;
+
+    // trait Hand = HandBase<PlayerHandJp4s17t, Tile=Tile>;
+
+    pub(crate) struct EightPairsAndHalf {
+        closed_han: u8,
+        open_han: u8,
+    }
+
+    impl EightPairsAndHalf {
+        pub(crate) fn new(closed_han: u8, open_han: u8) -> EightPairsAndHalf {
+            EightPairsAndHalf {
+                closed_han,
+                open_han,
+            }
+        }
+
+        fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult {
+            let mut tiles = player_hand.closed_tiles.clone();
+            tiles.insert(*new_tile);
+            let groups = tiles.get_by_buckets();
+            let groups = groups.group_by(|&(_, &n)| n);
+            let map: HashMap<_, Vec<_>> = groups.into_iter().map(|(n, gv)| (n, gv.collect())).collect();
+            match (map.get(&2), map.get(&3)) {
+                (Some(n2), Some(n3)) if n2.len() == 7 && n3.len() == 1 =>
+                    HandTestResult::Winning(if player_hand.is_closed() { self.closed_han } else { self.open_han }),
+                _ => HandTestResult::Nothing
+            }
+        }
+    }
+
+    impl HandBase<PlayerHandJp4s17t> for EightPairsAndHalf {
+        type Tile = Tile;
+
+        fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult {
+            self.test(player_hand, drawn_tile)
+        }
+
+        fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult {
+            self.test(player_hand, discarded_tile)
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::super::game::PlayerHandJp4s17t;
+        use super::super::structure::MultiBTreeSet;
+        use super::super::tile::Tile;
+        use crate::game::Meld;
+        use std::iter::FromIterator;
+
+        impl PlayerHandJp4s17t {
+            fn create<I: IntoIterator<Item=Tile>>(tiles: I, melds: Vec<Meld<Tile>>, discard_pile: Vec<(Tile, bool)>) -> PlayerHandJp4s17t {
+                PlayerHandJp4s17t {
+                    closed_tiles: MultiBTreeSet::from_iter(tiles),
+                    melds,
+                    discard_pile,
+                }
+            }
+        }
+
+        mod eight_pairs_and_half {
+            use super::super::EightPairsAndHalf;
+            use crate::hands::{Hand, HandTestResult};
+            use super::super::super::game::PlayerHandJp4s17t;
+            use super::super::super::tile::Tile::{Number, Wind, Symbol};
+            use super::super::super::tile::Suite::{Green, Red, White, Black};
+
+            #[test]
+            fn when_drawn_wins() {
+                let matcher = EightPairsAndHalf { closed_han: 2, open_han: 1 };
+                let hand = PlayerHandJp4s17t::create(
+                    (1..=8).map(|i| Number(Green, i))
+                        .map(|t| vec![t, t])
+                        .flatten(),
+                    vec![], vec![]);
+                let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 1));
+                assert_eq!(result, HandTestResult::Winning(2));
+            }
+
+            #[test]
+            fn when_drawn_nothing_happens() {
+                let matcher = EightPairsAndHalf { closed_han: 2, open_han: 1 };
+                let hand = PlayerHandJp4s17t::create(
+                    (1..=8).map(|i| Number(Red, i))
+                        .map(|t| vec![t, t])
+                        .flatten(),
+                    vec![], vec![]);
+                let result = matcher.test_with_drawn_tile(&hand, &Number(Red, 9));
+                assert_eq!(result, HandTestResult::Nothing);
             }
         }
     }
@@ -125,9 +267,9 @@ mod game {
     const N_TILES: u8 = 9 * 4 * 4 + 4 * 4 + 4 * 4;
 
     pub(crate) struct PlayerHandJp4s17t {
-        closed_tiles: MultiBTreeSet<Tile>,
-        melds: Vec<Meld<Tile>>,
-        discard_pile: Vec<(Tile, bool)>,
+        pub(crate) closed_tiles: MultiBTreeSet<Tile>,
+        pub(crate) melds: Vec<Meld<Tile>>,
+        pub(crate) discard_pile: Vec<(Tile, bool)>,
     }
 
     impl PlayerHandJp4s17t {
@@ -138,11 +280,18 @@ mod game {
                 discard_pile: vec![],
             }
         }
+
+        pub(crate) fn is_closed(&self) -> bool {
+            self.melds.iter().all(|m| match m {
+                Meld::Kong(_, None) => true, // closed kong, 暗槓
+                _ => false
+            })
+        }
     }
 
     impl PlayerHand<Tile> for PlayerHandJp4s17t {
         fn get_options_on_drawing(&mut self, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
-            self.closed_tiles.insert(*drawn_tile);
+            self.closed_tiles.insert(*drawn_tile); // FIXME
             vec![TurnChoice::Discard(*drawn_tile, 0)]
         }
 
@@ -292,10 +441,8 @@ mod game {
 
     #[cfg(test)]
     mod tests {
-        use std::fmt::{Debug, Error, Formatter};
         use std::rc::Rc;
 
-        use colored::*;
         use itertools::Itertools;
 
         use crate::game::{Game, MeldChoice, TurnChoice};
@@ -309,37 +456,6 @@ mod game {
         impl OnlyDiscardFakePlayer {
             pub fn new() -> OnlyDiscardFakePlayer {
                 OnlyDiscardFakePlayer {}
-            }
-        }
-
-        impl Debug for Tile {
-            fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-                const NUMBERS: [&str; 9] = ["一", "二", "三", "四", "伍", "六", "七", "八", "九"];
-                const CORDS: [&str; 9] = ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
-                const COINS: [&str; 9] = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
-                const UNKNOWNS: [&str; 9] = ["１⃣", "２⃣", "３⃣", "４⃣", "５⃣", "６⃣", "７⃣", "８⃣", "９⃣"];
-
-                write!(f, "{}", match self {
-                    Tile::Number(s, n) => match s {
-                        Suite::Red => format!("{}", NUMBERS[*n as usize - 1]).red(),
-                        Suite::Green => format!("{}", CORDS[*n as usize - 1]).green().underline(),
-                        Suite::White => format!("{}", COINS[*n as usize - 1]).yellow(),
-                        Suite::Black => format!("{}", UNKNOWNS[*n as usize - 1]).magenta(),
-                    }
-                    ,
-                    Tile::Wind(s) => match s {
-                        Suite::Red => "東",
-                        Suite::Green => "南",
-                        Suite::White => "西",
-                        Suite::Black => "北",
-                    }.to_string().cyan(),
-                    Tile::Symbol(s) => match s {
-                        Suite::Red => "中".red(),
-                        Suite::Green => "發".green(),
-                        Suite::White => "　⃣".yellow(),
-                        Suite::Black => "？".magenta(),
-                    },
-                })
             }
         }
 

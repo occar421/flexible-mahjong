@@ -1,11 +1,9 @@
 use rand::prelude::*;
 use std::rc::Rc;
 use crate::players::Player;
-use std::collections::BinaryHeap;
-use std::iter::FromIterator;
 use crate::tile::Tile;
 
-pub(crate) enum TurnChoice<TTile: Tile> {
+pub enum TurnChoice<TTile: Tile> {
     /// 打牌
     Discard(TTile, usize),
     /// 暗槓
@@ -18,7 +16,7 @@ pub(crate) enum TurnChoice<TTile: Tile> {
     Complete,
 }
 
-pub(crate) enum MeldChoice<TTile: Tile> {
+pub enum MeldChoice<TTile: Tile> {
     /// 大明槓
     MakeExposedKong,
     /// ポン
@@ -47,7 +45,7 @@ pub(crate) enum Meld<TTile: Tile> {
     Kong([TTile; 4], Option<Side>),
 }
 
-pub(crate) trait PlayerHand<TTile: Tile> {
+pub trait PlayerHand<TTile: Tile> {
     fn get_options_on_drawing(&mut self, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
 
     fn get_options_for_meld(&mut self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
