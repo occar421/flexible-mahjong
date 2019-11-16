@@ -157,7 +157,7 @@ mod hands {
     use crate::hands::{Hand as HandBase, HandTestResult};
     use super::tile::Tile;
     use itertools::Itertools;
-    use super::game::PlayerHandJp4s17t;
+    use super::game::{PlayerHandJp4s17t, WinningPoint};
     use std::collections::HashMap;
 
     // trait Hand = HandBase<PlayerHandJp4s17t, Tile=Tile>;
@@ -175,7 +175,7 @@ mod hands {
             }
         }
 
-        fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult {
+        fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult<WinningPoint> {
             let mut tiles = player_hand.closed_tiles.clone();
             tiles.insert(*new_tile);
             let groups = tiles.get_by_buckets();
@@ -183,20 +183,21 @@ mod hands {
             let map: HashMap<_, Vec<_>> = groups.into_iter().map(|(n, gv)| (n, gv.collect())).collect();
             match (map.get(&2), map.get(&3)) {
                 (Some(n2), Some(n3)) if n2.len() == 7 && n3.len() == 1 =>
-                    HandTestResult::Winning(if player_hand.is_closed() { self.closed_han } else { self.open_han }),
+                    HandTestResult::Winning(WinningPoint::Fan(if player_hand.is_closed() { self.closed_han } else { self.open_han })),
                 _ => HandTestResult::Nothing
             }
         }
     }
 
     impl HandBase<PlayerHandJp4s17t> for EightPairsAndHalf {
+        type Point = WinningPoint;
         type Tile = Tile;
 
-        fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult {
+        fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
             self.test(player_hand, drawn_tile)
         }
 
-        fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult {
+        fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
             self.test(player_hand, discarded_tile)
         }
     }
@@ -222,7 +223,7 @@ mod hands {
         mod eight_pairs_and_half {
             use super::super::EightPairsAndHalf;
             use crate::hands::{Hand, HandTestResult};
-            use super::super::super::game::PlayerHandJp4s17t;
+            use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
             use super::super::super::tile::Tile::{Number, Wind, Symbol};
             use super::super::super::tile::Suite::{Green, Red, White, Black};
 
@@ -235,7 +236,7 @@ mod hands {
                         .flatten(),
                     vec![], vec![]);
                 let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 1));
-                assert_eq!(result, HandTestResult::Winning(2));
+                assert_eq!(result, HandTestResult::Winning(WinningPoint::Fan(2)));
             }
 
             #[test]
@@ -265,6 +266,14 @@ mod game {
     use super::tile::{Suite, Tile};
 
     const N_TILES: u8 = 9 * 4 * 4 + 4 * 4 + 4 * 4;
+
+    #[derive(Eq, PartialEq, Debug)]
+    pub(crate) enum WinningPoint {
+        // 飜
+        Fan(u8),
+        // 役満 (could be double Yakuman or triple Yakuman etc.)
+        Yakuman(u8),
+    }
 
     pub(crate) struct PlayerHandJp4s17t {
         pub(crate) closed_tiles: MultiBTreeSet<Tile>,
