@@ -4,8 +4,8 @@ use rand::Rng;
 
 use crate::game::{Game, GameState, Meld, MeldChoice, N_PLAYER, PlayerHand, TurnChoice};
 use crate::players::Player;
+use crate::collections::MultiBTreeSet;
 
-use super::structure::MultiBTreeSet;
 use super::tile::{Suite, Tile};
 
 const N_TILES: u8 = 9 * 4 * 4 + 4 * 4 + 4 * 4;

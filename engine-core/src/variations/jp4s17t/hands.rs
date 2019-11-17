@@ -49,9 +49,9 @@ impl HandBase<PlayerHandJp4s17t> for EightPairsAndHalf {
 #[cfg(test)]
 mod tests {
     use super::super::game::PlayerHandJp4s17t;
-    use super::super::structure::MultiBTreeSet;
     use super::super::tile::Tile;
     use crate::game::Meld;
+    use crate::collections::MultiBTreeSet;
     use std::iter::FromIterator;
 
     impl PlayerHandJp4s17t {
