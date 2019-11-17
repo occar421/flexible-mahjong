@@ -1,5 +1,5 @@
 [package]
-name = "mahjong_engine_core_4s_17t_jp"
+name = "flexible-marjong-engine-core"
 version = "0.1.0"
 authors = ["MasuqaT <occar@hotmail.co.jp>"]
 edition = "2018"
