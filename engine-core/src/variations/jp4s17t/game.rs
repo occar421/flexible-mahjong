@@ -263,6 +263,10 @@ mod tests {
         four_winds.extend(vec![Number(Red, 2), Number(Red, 2), Number(Red, 2), Number(Red, 3)]);
         let mut four_dragons: Vec<_> = [Green, Red, White, Black].iter().map(|&s| Symbol(s)).map(|t| vec![t, t, t]).flatten().collect();
         four_dragons.extend(vec![Number(White, 2), Number(White, 2), Number(White, 2), Number(White, 3)]);
-        m.match_core(&vec![], &vec![], &[&all_green, &sixteen_orphans, &four_winds, &four_dragons]);
+        m.match_core(
+            &vec![],
+            &(2..=8).collect::<Vec<_>>().iter().map(|&i| vec![i, i]).flatten().map(|i| Number(Black, i)).collect(),
+            &[&all_green, &sixteen_orphans, &four_winds, &four_dragons],
+        );
     }
 }
