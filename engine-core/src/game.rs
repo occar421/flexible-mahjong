@@ -50,7 +50,7 @@ pub trait PlayerHand<TTile: Tile> {
 
     fn get_options_for_meld(&self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
 
-    fn discard(&mut self, tile: &TTile, index: usize);
+    fn discard(&mut self, drawn_tile: &TTile, tile: &TTile, index: usize);
 
     fn add_tile_to_discard_pile(&mut self, tile: &TTile, is_used_in_meld: bool);
 

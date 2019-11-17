@@ -55,7 +55,8 @@ impl PlayerHand<Tile> for PlayerHandJp4s17t {
         vec![MeldChoice::DoNothing] // FIXME
     }
 
-    fn discard(&mut self, tile: &Tile, _: usize) {
+    fn discard(&mut self, drawn_tile: &Tile, tile: &Tile, _: usize) {
+        self.closed_tiles.insert(*drawn_tile);
         if self.closed_tiles.remove(tile) {
             return;
         }
@@ -124,7 +125,7 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
 
             match choice {
                 TurnChoice::Discard(discarded_tile, index) => {
-                    hand.discard(&discarded_tile, index);
+                    hand.discard(&drawn_tile, &discarded_tile, index);
                     hand.add_tile_to_discard_pile(&discarded_tile, false);
                 }
                 _ => unimplemented!()
