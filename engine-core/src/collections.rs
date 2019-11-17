@@ -39,6 +39,10 @@ impl<T: Ord + Clone> MultiBTreeSet<T> {
     pub fn clone(&self) -> Self {
         MultiBTreeSet { map: self.map.clone() }
     }
+
+    pub fn len(&self) -> usize {
+        self.map.iter().fold(0, |acc, (_, &n)| acc + n)
+    }
 }
 
 impl<T: Ord + Copy> FromIterator<T> for MultiBTreeSet<T> {
