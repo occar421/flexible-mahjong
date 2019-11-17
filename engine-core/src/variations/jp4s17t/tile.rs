@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
-use colored::*;
 use std::fmt::{Debug, Error, Formatter};
 
+#[cfg(test)]
+use colored::*;
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Suite {
@@ -62,6 +63,7 @@ impl PartialOrd for Tile {
 
 impl crate::tile::Tile for Tile { type Suite = Suite; }
 
+#[cfg(test)]
 impl Debug for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         const NUMBERS: [&str; 9] = ["一", "二", "三", "四", "伍", "六", "七", "八", "九"];
