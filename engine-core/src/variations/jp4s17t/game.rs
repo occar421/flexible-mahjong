@@ -42,13 +42,17 @@ impl PlayerHandJp4s17t {
 }
 
 impl PlayerHand<Tile> for PlayerHandJp4s17t {
-    fn get_options_on_drawing(&mut self, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
-        self.closed_tiles.insert(*drawn_tile); // FIXME
-        vec![TurnChoice::Discard(*drawn_tile, 0)]
+    fn get_options_on_drawing(&self, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
+        let mut tiles = self.closed_tiles.clone();
+        tiles.insert(*drawn_tile);
+        tiles.get_by_buckets()
+            .map(|(&t, &n)| (0..n).map(move |n| TurnChoice::Discard(t, n)))
+            .flatten()
+            .collect() // FIXME
     }
 
-    fn get_options_for_meld(&mut self, discarded_tile: &Tile) -> Vec<MeldChoice<Tile>> {
-        vec![MeldChoice::DoNothing]
+    fn get_options_for_meld(&self, discarded_tile: &Tile) -> Vec<MeldChoice<Tile>> {
+        vec![MeldChoice::DoNothing] // FIXME
     }
 
     fn discard(&mut self, tile: &Tile, _: usize) {
@@ -64,7 +68,7 @@ impl PlayerHand<Tile> for PlayerHandJp4s17t {
 
     // is 聴牌
     fn is_ready(&self) -> bool {
-        false
+        false // FIXME
     }
 }
 

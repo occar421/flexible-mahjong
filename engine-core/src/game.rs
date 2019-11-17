@@ -46,9 +46,9 @@ pub(crate) enum Meld<TTile: Tile> {
 }
 
 pub trait PlayerHand<TTile: Tile> {
-    fn get_options_on_drawing(&mut self, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
+    fn get_options_on_drawing(&self, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
 
-    fn get_options_for_meld(&mut self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
+    fn get_options_for_meld(&self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
 
     fn discard(&mut self, tile: &TTile, index: usize);
 
