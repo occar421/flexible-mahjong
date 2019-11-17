@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use std::marker::PhantomData;
 use crate::game::Meld;
 
-// trait Hand = HandBase<PlayerHandJp4s17t, Tile=Tile>;
+// trait NormalHand = HandBase<PlayerHandJp4s17t, Tile=Tile>;
 
-pub(crate) struct Hand<T> {
+pub(crate) struct FanHand<T> {
     closed_han: u8,
     open_han: u8,
     phantom: PhantomData<T>,
@@ -17,9 +17,9 @@ pub(crate) struct Hand<T> {
 /// 八対子半
 struct EightPairsAndHalf;
 
-impl Hand<EightPairsAndHalf> {
-    pub(crate) fn new(closed_han: u8, open_han: u8) -> Hand<EightPairsAndHalf> {
-        Hand {
+impl FanHand<EightPairsAndHalf> {
+    pub(crate) fn new(closed_han: u8, open_han: u8) -> FanHand<EightPairsAndHalf> {
+        FanHand {
             closed_han,
             open_han,
             phantom: PhantomData,
@@ -40,7 +40,7 @@ impl Hand<EightPairsAndHalf> {
     }
 }
 
-impl HandBase<PlayerHandJp4s17t> for Hand<EightPairsAndHalf> {
+impl HandBase<PlayerHandJp4s17t> for FanHand<EightPairsAndHalf> {
     type Point = WinningPoint;
     type Tile = Tile;
 
@@ -56,9 +56,9 @@ impl HandBase<PlayerHandJp4s17t> for Hand<EightPairsAndHalf> {
 /// 対々和
 struct AllInTriplets;
 
-impl Hand<AllInTriplets> {
-    pub(crate) fn new(closed_han: u8, open_han: u8) -> Hand<AllInTriplets> {
-        Hand {
+impl FanHand<AllInTriplets> {
+    pub(crate) fn new(closed_han: u8, open_han: u8) -> FanHand<AllInTriplets> {
+        FanHand {
             closed_han,
             open_han,
             phantom: PhantomData,
@@ -93,7 +93,7 @@ impl Hand<AllInTriplets> {
     }
 }
 
-impl HandBase<PlayerHandJp4s17t> for Hand<AllInTriplets> {
+impl HandBase<PlayerHandJp4s17t> for FanHand<AllInTriplets> {
     type Point = WinningPoint;
     type Tile = Tile;
 
@@ -130,11 +130,11 @@ mod tests {
         use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
         use super::super::super::tile::Tile::{Number, Wind, Symbol};
         use super::super::super::tile::Suite::{Green, Red, White, Black};
-        use super::super::Hand;
+        use super::super::FanHand;
 
         #[test]
         fn when_drawn_wins() {
-            let matcher = Hand::<EightPairsAndHalf>::new(2, 1);
+            let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
             let hand = PlayerHandJp4s17t::create(
                 (1..=8).map(|i| Number(Green, i))
                     .map(|t| vec![t, t])
@@ -146,7 +146,7 @@ mod tests {
 
         #[test]
         fn when_drawn_nothing_happens() {
-            let matcher = Hand::<EightPairsAndHalf>::new(2, 1);
+            let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
             let hand = PlayerHandJp4s17t::create(
                 (1..=8).map(|i| Number(Red, i))
                     .map(|t| vec![t, t])
@@ -163,13 +163,13 @@ mod tests {
         use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
         use super::super::super::tile::Tile::{Number, Wind, Symbol};
         use super::super::super::tile::Suite::{Green, Red, White, Black};
-        use super::super::Hand;
+        use super::super::FanHand;
         use crate::game::{Meld, Side};
 
         #[test]
         /// 裸単騎待ち
         fn when_drawn_wins_only_one_tile() {
-            let matcher = Hand::<AllInTriplets>::new(2, 2);
+            let matcher = FanHand::<AllInTriplets>::new(2, 2);
             let hand = PlayerHandJp4s17t::create(
                 vec![Number(Green, 6)],
                 (1..=5).map(|i| Number(Green, i))
@@ -183,7 +183,7 @@ mod tests {
 
         #[test]
         fn when_drawn_wins_with_double_wait() {
-            let matcher = Hand::<AllInTriplets>::new(2, 2);
+            let matcher = FanHand::<AllInTriplets>::new(2, 2);
             let hand = PlayerHandJp4s17t::create(
                 vec![Number(Green, 5), Number(Green, 5), Number(Green, 6), Number(Green, 6)],
                 (1..=4).map(|i| Number(Green, i))
@@ -197,7 +197,7 @@ mod tests {
 
         #[test]
         fn when_drawn_nothing_happens() {
-            let matcher = Hand::<AllInTriplets>::new(2, 2);
+            let matcher = FanHand::<AllInTriplets>::new(2, 2);
             let hand = PlayerHandJp4s17t::create(
                 (1..=8).map(|i| Number(Red, i))
                     .map(|t| vec![t, t])
