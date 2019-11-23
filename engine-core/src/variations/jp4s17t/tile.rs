@@ -14,11 +14,11 @@ pub(crate) enum Suite {
     /// Red, South, M
     /// 中、南、萬子
     Red,
-    /// White, West, P
-    /// 囗、西、筒子
+    /// White, West, B
+    /// 囗、西、貝子
     White,
-    /// Black, North, ?
-    /// ？、北、？子
+    /// Black, North, P
+    /// 治、北、筒子
     Black,
 }
 
@@ -70,15 +70,15 @@ impl Debug for Tile {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         const NUMBERS: [&str; 9] = ["一", "二", "三", "四", "伍", "六", "七", "八", "九"];
         const CORDS: [&str; 9] = ["１", "２", "３", "４", "５", "６", "７", "８", "９"];
+        const SHELLS: [&str; 9] = ["１⃣", "２⃣", "３⃣", "４⃣", "５⃣", "６⃣", "７⃣", "８⃣", "９⃣"];
         const COINS: [&str; 9] = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
-        const UNKNOWNS: [&str; 9] = ["１⃣", "２⃣", "３⃣", "４⃣", "５⃣", "６⃣", "７⃣", "８⃣", "９⃣"];
 
         write!(f, "{}", match self {
             Tile::Number(s, n) => match s {
                 Suite::Red => format!("{}", NUMBERS[*n as usize - 1]).red(),
                 Suite::Green => format!("{}", CORDS[*n as usize - 1]).green().underline(),
-                Suite::White => format!("{}", COINS[*n as usize - 1]).yellow(),
-                Suite::Black => format!("{}", UNKNOWNS[*n as usize - 1]).magenta(),
+                Suite::White => format!("{}", SHELLS[*n as usize - 1]).yellow(),
+                Suite::Black => format!("{}", COINS[*n as usize - 1]).magenta(),
             }
             ,
             Tile::Wind(s) => match s {
@@ -91,7 +91,7 @@ impl Debug for Tile {
                 Suite::Red => "中".red(),
                 Suite::Green => "發".green(),
                 Suite::White => "　⃣".yellow(),
-                Suite::Black => "？".magenta(),
+                Suite::Black => "治".magenta(),
             },
         })
     }
