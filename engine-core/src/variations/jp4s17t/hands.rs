@@ -1,4 +1,4 @@
-use crate::hands::{Hand as HandBase, HandTestResult};
+use crate::hands::{Hand, HandTestResult};
 use super::tile::{Tile, Suite};
 use itertools::Itertools;
 use super::game::{PlayerHandJp4s17t, WinningPoint};
@@ -6,8 +6,6 @@ use std::collections::{HashMap, BTreeSet};
 use std::marker::PhantomData;
 use crate::game::Meld;
 use std::iter::FromIterator;
-
-// trait NormalHand = HandBase<PlayerHandJp4s17t, Tile=Tile>;
 
 pub(crate) struct FanHand<T> {
     closed_han: u8,
@@ -45,15 +43,15 @@ impl FanHand<EightPairsAndHalf> {
     }
 }
 
-impl HandBase<PlayerHandJp4s17t> for FanHand<EightPairsAndHalf> {
+impl Hand<PlayerHandJp4s17t> for FanHand<EightPairsAndHalf> {
     type Point = WinningPoint;
     type Tile = Tile;
 
-    fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_on_drawing(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, drawn_tile)
     }
 
-    fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_when_discarded(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, discarded_tile)
     }
 }
@@ -98,15 +96,15 @@ impl FanHand<AllInTriplets> {
     }
 }
 
-impl HandBase<PlayerHandJp4s17t> for FanHand<AllInTriplets> {
+impl Hand<PlayerHandJp4s17t> for FanHand<AllInTriplets> {
     type Point = WinningPoint;
     type Tile = Tile;
 
-    fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_on_drawing(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, drawn_tile)
     }
 
-    fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_when_discarded(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, discarded_tile)
     }
 }
@@ -172,15 +170,15 @@ impl YakumanHand<SixteenOrphans> {
     }
 }
 
-impl HandBase<PlayerHandJp4s17t> for YakumanHand<SixteenOrphans> {
+impl Hand<PlayerHandJp4s17t> for YakumanHand<SixteenOrphans> {
     type Point = WinningPoint;
     type Tile = Tile;
 
-    fn test_with_drawn_tile(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_on_drawing(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, drawn_tile)
     }
 
-    fn test_with_discarded_tile(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
+    fn test_completion_when_discarded(&self, player_hand: &PlayerHandJp4s17t, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point> {
         self.test(player_hand, discarded_tile)
     }
 }
@@ -205,7 +203,7 @@ mod tests {
 
     mod eight_pairs_and_half {
         use super::super::EightPairsAndHalf;
-        use crate::hands::{Hand as HandBase, HandTestResult};
+        use crate::hands::{Hand, HandTestResult};
         use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
         use super::super::super::tile::Tile::{Number, Wind, Symbol};
         use super::super::super::tile::Suite::{Green, Red, White, Black};
@@ -219,7 +217,7 @@ mod tests {
                     .map(|t| vec![t, t])
                     .flatten(),
                 vec![], vec![]);
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 1));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 1));
             assert_eq!(result, HandTestResult::Winning(WinningPoint::Fan(2)));
         }
 
@@ -231,14 +229,14 @@ mod tests {
                     .map(|t| vec![t, t])
                     .flatten(),
                 vec![], vec![]);
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Red, 9));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));
             assert_eq!(result, HandTestResult::Nothing);
         }
     }
 
     mod all_in_triplets {
         use super::super::AllInTriplets;
-        use crate::hands::{Hand as HandBase, HandTestResult};
+        use crate::hands::{Hand, HandTestResult};
         use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
         use super::super::super::tile::Tile::{Number, Wind, Symbol};
         use super::super::super::tile::Suite::{Green, Red, White, Black};
@@ -256,7 +254,7 @@ mod tests {
                     .collect(),
                 vec![],
             );
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 6));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 6));
             assert_eq!(result, HandTestResult::Winning(WinningPoint::Fan(2)));
         }
 
@@ -270,7 +268,7 @@ mod tests {
                     .collect(),
                 vec![],
             );
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 6));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 6));
             assert_eq!(result, HandTestResult::Winning(WinningPoint::Fan(2)));
         }
 
@@ -282,14 +280,14 @@ mod tests {
                     .map(|t| vec![t, t])
                     .flatten(),
                 vec![], vec![]);
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Red, 9));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));
             assert_eq!(result, HandTestResult::Nothing);
         }
     }
 
     mod sixteen_orphans {
         use super::super::SixteenOrphans;
-        use crate::hands::{Hand as HandBase, HandTestResult};
+        use crate::hands::{Hand, HandTestResult};
         use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
         use super::super::super::tile::Tile::{Number, Wind, Symbol};
         use super::super::super::tile::Suite::{Green, Red, White, Black};
@@ -304,7 +302,7 @@ mod tests {
                     YakumanHand::<SixteenOrphans>::TERMINALS_AND_HONERS.iter()
                         .filter(|&t| t != &Number(Green, 9))).copied(),
                 vec![], vec![]);
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 9));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 9));
             assert_eq!(result, HandTestResult::Winning(WinningPoint::Yakuman(1)));
         }
 
@@ -316,7 +314,7 @@ mod tests {
                 vec![],
                 vec![],
             );
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 1));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 1));
             assert_eq!(result, HandTestResult::Winning(WinningPoint::Yakuman(2)));
         }
 
@@ -328,7 +326,7 @@ mod tests {
                 vec![],
                 vec![],
             );
-            let result = matcher.test_with_drawn_tile(&hand, &Number(Green, 5));
+            let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 5));
             assert_eq!(result, HandTestResult::Nothing);
         }
     }
