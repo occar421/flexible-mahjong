@@ -38,8 +38,7 @@ impl YakumanHand<SixteenOrphans> {
         if map.keys().len() == 1 {
             if let Some(tiles) = map.get(&1) {
                 let tiles = BTreeSet::from_iter(tiles.iter().map(|(t, _)| *t));
-                let is_identical = tiles.is_superset(&correct_tiles) && tiles.is_subset(&correct_tiles);
-                if is_identical && correct_tiles.contains(new_tile) {
+                if tiles == correct_tiles && correct_tiles.contains(new_tile) {
                     return HandTestResult::Winning(WinningPoint::Yakuman(self.config.sixteen_wait_value));
                 }
             }
