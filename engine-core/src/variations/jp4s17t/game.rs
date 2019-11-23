@@ -206,7 +206,7 @@ mod tests {
     use crate::players::Player;
 
     use super::GameJp4s17t;
-    use super::super::tile::{Suite, Tile};
+    use super::super::tile::Tile;
 
     pub struct OnlyDiscardFakePlayer;
 

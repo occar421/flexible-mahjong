@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
-use std::fmt::{Debug, Error, Formatter};
 
 #[cfg(test)]
-use colored::*;
+use {
+    colored::*,
+    std::fmt::{Debug, Error, Formatter},
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Suite {
