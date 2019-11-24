@@ -81,9 +81,7 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
 
         // running out, 流局
         MatchResult::RunningOut((0..N_PLAYER)
-            .map(|i| (i, brokers[i].is_ready()))
-            .filter(|(_, r)| *r)
-            .map(|(i, _)| i)
+            .filter(|&i| brokers[i].is_ready())
             .collect())
     }
 }
