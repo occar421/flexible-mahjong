@@ -110,13 +110,13 @@ enum MatchResult {
     RunningOut(Vec<usize>)
 }
 
-struct GameJp4s17t<P: Player + Sized> {
+struct GameModeratorJp4s17t<P: Player + Sized> {
     state: GameState<P>
 }
 
-impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
-    fn new(players: [Rc<P>; 4]) -> GameJp4s17t<P> {
-        GameJp4s17t {
+impl<P: Player<Tile=Tile> + Sized> GameModeratorJp4s17t<P> {
+    fn new(players: [Rc<P>; 4]) -> GameModeratorJp4s17t<P> {
+        GameModeratorJp4s17t {
             state: GameState::new(players)
         }
     }
@@ -187,7 +187,7 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
     }
 }
 
-impl<P: Player<Tile=Tile> + Sized> GameModerator for GameJp4s17t<P> {
+impl<P: Player<Tile=Tile> + Sized> GameModerator for GameModeratorJp4s17t<P> {
     fn do_a_match_with_rng<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         // dealing tiles, 配牌作業
 
@@ -249,7 +249,7 @@ mod tests {
     use crate::game::{GameModerator, MeldChoice, TurnChoice, PlayerBroker};
     use crate::players::Player;
 
-    use super::{GameJp4s17t, PlayerHandJp4s17t, FanHand, PlayerBrokerJp4s17t};
+    use super::{GameModeratorJp4s17t, PlayerHandJp4s17t, FanHand, PlayerBrokerJp4s17t};
     use super::super::tile::Tile;
     use super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::tile::Suite::{Green, Red, White, Black};
@@ -292,7 +292,7 @@ mod tests {
             Rc::new(OnlyDiscardFakePlayer::new()),
             Rc::new(OnlyDiscardFakePlayer::new()),
         ];
-        let mut m = GameJp4s17t::new(players);
+        let mut m = GameModeratorJp4s17t::new(players);
         m.start_a_match();
     }
 
@@ -304,7 +304,7 @@ mod tests {
             Rc::new(OnlyDiscardFakePlayer::new()),
             Rc::new(OnlyDiscardFakePlayer::new()),
         ];
-        let mut m = GameJp4s17t::new(players);
+        let mut m = GameModeratorJp4s17t::new(players);
         let all_green: Vec<_> = [2, 3, 4, 6, 8].iter()
             .flat_map(|&n| repeat(Number(Green, n)).take(3))
             .chain(once(Symbol(Green)))
