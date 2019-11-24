@@ -75,7 +75,7 @@ impl PlayerHand<Tile> for PlayerHandJp4s17t {
             // FIXME: check only closed hand 面前役
             options.extend(once(TurnChoice::Complete));
         };
-        options.extend(buckets.map(|(&t, &n)| (0..n).map(move |n| TurnChoice::Discard(t, n))).flatten());
+        options.extend(buckets.flat_map(|(&t, &n)| (0..n).map(move |n| TurnChoice::Discard(t, n))));
         options // FIXME: declare-ready option
     }
 
@@ -253,7 +253,7 @@ mod tests {
     use super::super::hands::AllInTriplets;
     use std::collections::HashSet;
     use std::collections::hash_map::RandomState;
-    use std::iter::{FromIterator, once};
+    use std::iter::{FromIterator, once, repeat};
 
     pub struct OnlyDiscardFakePlayer;
 
@@ -302,38 +302,46 @@ mod tests {
             Rc::new(OnlyDiscardFakePlayer::new()),
         ];
         let mut m = GameJp4s17t::new(players);
-        let mut all_green: Vec<_> = [2, 3, 4, 6, 8].iter().map(|&n| Number(Green, n)).map(|t| vec![t, t, t]).flatten().collect();
-        all_green.extend(vec![Symbol(Green)]);
+        let all_green: Vec<_> = [2, 3, 4, 6, 8].iter()
+            .flat_map(|&n| repeat(Number(Green, n)).take(3))
+            .chain(once(Symbol(Green)))
+            .collect();
         let sixteen_orphans = vec![
             Number(Green, 1), Number(Green, 9), Number(Red, 1), Number(Red, 9), Number(White, 1), Number(White, 9), Number(Black, 1), Number(Black, 9),
             Wind(Green), Wind(Red), Wind(White), Wind(Black), Number(Green, 1) /*Symbol(Green)*/, Symbol(Red), Symbol(White), Symbol(Black)
         ];
-        let mut four_winds: Vec<_> = [Green, Red, White, Black].iter().map(|&s| Wind(s)).map(|t| vec![t, t, t]).flatten().collect();
-        four_winds.extend(vec![Number(Red, 2), Number(Red, 2), Number(Red, 2), Number(Red, 3)]);
-        let mut four_dragons: Vec<_> = [Green, Red, White, Black].iter().map(|&s| Symbol(s)).map(|t| vec![t, t, t]).flatten().collect();
-        four_dragons.extend(vec![Number(White, 2), Number(White, 2), Number(White, 2), Number(White, 3)]);
+        let four_winds: Vec<_> = [Green, Red, White, Black].iter()
+            .flat_map(|&s| repeat(Wind(s)).take(3))
+            .chain(vec![Number(Red, 2), Number(Red, 2), Number(Red, 2), Number(Red, 3)])
+            .collect();
+        let four_dragons: Vec<_> = [Green, Red, White, Black].iter()
+            .flat_map(|&s| repeat(Symbol(s)).take(3))
+            .chain(vec![Number(White, 2), Number(White, 2), Number(White, 2), Number(White, 3)])
+            .collect();
         m.match_core(
             &vec![],
-            &(2..=8).collect::<Vec<_>>().iter().map(|&i| vec![i, i]).flatten().map(|i| Number(Black, i)).collect(),
+            &(2..=8).flat_map(|i| repeat(Number(Black, i)).take(2)).collect(),
             &[&all_green, &sixteen_orphans, &four_winds, &four_dragons],
         );
     }
 
     #[test]
     fn test_get_options_on_drawing() {
-        let player_hand = PlayerHandJp4s17t::create((1..=4).map(|n| Number(Green, n)).map(|t| vec![t, t, t, t]).flatten(), vec![], vec![]);
+        let player_hand = PlayerHandJp4s17t::create(
+            (1..=4).flat_map(|n| repeat(Number(Green, n)).take(4)),
+            vec![], vec![]);
         let options = player_hand.get_options_on_drawing(&vec![&FanHand::<AllInTriplets>::new(1, 2)], &Number(Green, 6));
         let options: HashSet<_, RandomState> = HashSet::from_iter(options.iter().copied());
 
         let expected_options = HashSet::from_iter(
             once(TurnChoice::Discard(Number(Green, 6), 0))
-                .chain((1..=4).map(|n| vec![
+                .chain((1..=4).flat_map(|n| vec![
                     TurnChoice::MakeConcealedKong(Number(Green, n)),
                     TurnChoice::Discard(Number(Green, n), 0),
                     TurnChoice::Discard(Number(Green, n), 1),
                     TurnChoice::Discard(Number(Green, n), 2),
                     TurnChoice::Discard(Number(Green, n), 3),
-                ]).flatten()));
+                ])));
         assert_eq!(options, expected_options);
     }
 }

@@ -69,6 +69,7 @@ mod tests {
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::super::FanHand;
     use crate::game::{Meld, Side};
+    use std::iter::repeat;
 
     #[test]
     /// 裸単騎待ち
@@ -76,9 +77,10 @@ mod tests {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
         let hand = PlayerHandJp4s17t::create(
             vec![Number(Green, 6)],
-            (1..=5).map(|i| Number(Green, i))
-                .map(|t| Meld::Pong([t, t, t], Side::Left))
-                .collect(),
+            (1..=5).map(|i| {
+                let t = Number(Green, i);
+                Meld::Pong([t, t, t], Side::Left)
+            }).collect(),
             vec![],
         );
         let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 6));
@@ -90,9 +92,10 @@ mod tests {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
         let hand = PlayerHandJp4s17t::create(
             vec![Number(Green, 5), Number(Green, 5), Number(Green, 6), Number(Green, 6)],
-            (1..=4).map(|i| Number(Green, i))
-                .map(|t| Meld::Pong([t, t, t], Side::Left))
-                .collect(),
+            (1..=4).map(|i| {
+                let t = Number(Green, i);
+                Meld::Pong([t, t, t], Side::Left)
+            }).collect(),
             vec![],
         );
         let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 6));
@@ -103,9 +106,7 @@ mod tests {
     fn when_drawn_nothing_happens() {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
         let hand = PlayerHandJp4s17t::create(
-            (1..=8).map(|i| Number(Red, i))
-                .map(|t| vec![t, t])
-                .flatten(),
+            (1..=8).flat_map(|i| repeat(Number(Red, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));
         assert_eq!(result, HandTestResult::Nothing);

@@ -53,14 +53,13 @@ mod tests {
     use super::super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::FanHand;
+    use std::iter::repeat;
 
     #[test]
     fn when_drawn_wins() {
         let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
         let hand = PlayerHandJp4s17t::create(
-            (1..=8).map(|i| Number(Green, i))
-                .map(|t| vec![t, t])
-                .flatten(),
+            (1..=8).flat_map(|i| repeat(Number(Green, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 1));
         assert_eq!(result, HandTestResult::Winning(WinningPoint::Fan(2)));
@@ -70,9 +69,7 @@ mod tests {
     fn when_drawn_nothing_happens() {
         let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
         let hand = PlayerHandJp4s17t::create(
-            (1..=8).map(|i| Number(Red, i))
-                .map(|t| vec![t, t])
-                .flatten(),
+            (1..=8).flat_map(|i| repeat(Number(Red, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));
         assert_eq!(result, HandTestResult::Nothing);
