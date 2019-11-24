@@ -2,7 +2,7 @@ use std::iter::{FromIterator, once};
 use std::rc::Rc;
 use rand::Rng;
 
-use crate::game::{Game, GameState, Meld, MeldChoice, N_PLAYER, PlayerHand, TurnChoice};
+use crate::game::{GameModerator, GameState, Meld, MeldChoice, N_PLAYER, PlayerBroker, TurnChoice};
 use crate::players::Player;
 use crate::collections::MultiBTreeSet;
 
@@ -54,20 +54,25 @@ impl PlayerHandJp4s17t {
     }
 }
 
-impl PlayerHand<Tile> for PlayerHandJp4s17t {
-    type Point = WinningPoint;
+struct PlayerBrokerJp4s17t(PlayerHandJp4s17t);
 
-    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>>, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
-        let mut tiles = self.closed_tiles.clone();
+impl PlayerBroker for PlayerBrokerJp4s17t {
+    type Point = WinningPoint;
+    type PlayerHand = PlayerHandJp4s17t;
+    type Tile = Tile;
+    // trait Hand = Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>;
+
+    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>>, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
+        let mut tiles = self.0.closed_tiles.clone();
         tiles.insert(*drawn_tile);
         let mut buckets = tiles.get_by_buckets();
         let mut options = vec![];
         options.extend(buckets.clone().filter(|(_, &n)| n == 4).map(|(&t, _)| TurnChoice::MakeConcealedKong(t)));
-        options.extend(self.melds.iter().filter_map(|m| match m {
+        options.extend(self.0.melds.iter().filter_map(|m| match m {
             Meld::Pong([t, _, _], _) if tiles.contains(t) => Some(TurnChoice::MakeKongFromPong(*t)),
             _ => None
         }));
-        if possible_hands.iter().any(|h| match h.test_completion_on_drawing(self, drawn_tile) {
+        if possible_hands.iter().any(|h| match h.test_completion_on_drawing(&self.0, drawn_tile) {
             HandTestResult::Winning(_) => true,
             _ => false
         }) {
@@ -84,15 +89,15 @@ impl PlayerHand<Tile> for PlayerHandJp4s17t {
     }
 
     fn discard(&mut self, drawn_tile: &Tile, tile: &Tile, _: usize) {
-        self.closed_tiles.insert(*drawn_tile);
-        if self.closed_tiles.remove(tile) {
+        self.0.closed_tiles.insert(*drawn_tile);
+        if self.0.closed_tiles.remove(tile) {
             return;
         }
         panic!("Can't discard because they don't have it");
     }
 
     fn add_tile_to_discard_pile(&mut self, tile: &Tile, is_used_in_meld: bool) {
-        self.discard_pile.push((*tile, is_used_in_meld));
+        self.0.discard_pile.push((*tile, is_used_in_meld));
     }
 
     // is 聴牌
@@ -127,11 +132,11 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
         // 嶺上牌
         let supplemental_tiles = dead_wall;
 
-        let mut hands: [_; N_PLAYER] = [
-            PlayerHandJp4s17t::new(players_tiles[0].clone()),
-            PlayerHandJp4s17t::new(players_tiles[1].clone()),
-            PlayerHandJp4s17t::new(players_tiles[2].clone()),
-            PlayerHandJp4s17t::new(players_tiles[3].clone()),
+        let mut brokers: [_; N_PLAYER] = [
+            PlayerBrokerJp4s17t(PlayerHandJp4s17t::new(players_tiles[0].clone())),
+            PlayerBrokerJp4s17t(PlayerHandJp4s17t::new(players_tiles[1].clone())),
+            PlayerBrokerJp4s17t(PlayerHandJp4s17t::new(players_tiles[2].clone())),
+            PlayerBrokerJp4s17t(PlayerHandJp4s17t::new(players_tiles[3].clone())),
         ];
 
         for i in 0..N_PLAYER {
@@ -142,7 +147,7 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
         let all_in_triplets = FanHand::<AllInTriplets>::new(2, 2);
         let sixteen_orphans = YakumanHand::<SixteenOrphans>::new(1, 2);
 
-        let static_hands: [&dyn Hand<PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>; 3] = [
+        let static_hands: [&dyn Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>; 3] = [
             &eight_pairs_and_half,
             &all_in_triplets,
             &sixteen_orphans
@@ -155,17 +160,17 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
         // start game
         while let Some(drawn_tile) = wall.pop() {
             let player = &self.state.players[turn_index];
-            let hand = &mut hands[turn_index];
+            let broker = &mut brokers[turn_index];
             let possible_hands = static_hands.to_vec();
-            let options = hand.get_options_on_drawing(&possible_hands, &drawn_tile);
+            let options = broker.get_options_on_drawing(&possible_hands, &drawn_tile);
 
             // 自摸
             let choice = player.draw(&drawn_tile, &options);
 
             match choice {
                 TurnChoice::Discard(discarded_tile, index) => {
-                    hand.discard(&drawn_tile, &discarded_tile, index);
-                    hand.add_tile_to_discard_pile(&discarded_tile, false);
+                    broker.discard(&drawn_tile, &discarded_tile, index);
+                    broker.add_tile_to_discard_pile(&discarded_tile, false);
                 }
                 _ => unimplemented!()
             }
@@ -175,14 +180,14 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
 
         // running out, 流局
         MatchResult::RunningOut((0..N_PLAYER)
-            .map(|i| (i, hands[i].is_ready()))
+            .map(|i| (i, brokers[i].is_ready()))
             .filter(|(_, r)| *r)
             .map(|(i, _)| i)
             .collect())
     }
 }
 
-impl<P: Player<Tile=Tile> + Sized> Game for GameJp4s17t<P> {
+impl<P: Player<Tile=Tile> + Sized> GameModerator for GameJp4s17t<P> {
     fn do_a_match_with_rng<R: Rng + ?Sized>(&mut self, rng: &mut R) {
         // dealing tiles, 配牌作業
 
@@ -241,15 +246,13 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::game::{Game, MeldChoice, TurnChoice, PlayerHand};
+    use crate::game::{GameModerator, MeldChoice, TurnChoice, PlayerBroker};
     use crate::players::Player;
 
-    use super::GameJp4s17t;
+    use super::{GameJp4s17t, PlayerHandJp4s17t, FanHand, PlayerBrokerJp4s17t};
     use super::super::tile::Tile;
-    use super::PlayerHandJp4s17t;
     use super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::tile::Suite::{Green, Red, White, Black};
-    use super::FanHand;
     use super::super::hands::AllInTriplets;
     use std::collections::HashSet;
     use std::collections::hash_map::RandomState;
@@ -330,7 +333,8 @@ mod tests {
         let player_hand = PlayerHandJp4s17t::create(
             (1..=4).flat_map(|n| repeat(Number(Green, n)).take(4)),
             vec![], vec![]);
-        let options = player_hand.get_options_on_drawing(&vec![&FanHand::<AllInTriplets>::new(1, 2)], &Number(Green, 6));
+        let broker = PlayerBrokerJp4s17t(player_hand);
+        let options = broker.get_options_on_drawing(&vec![&FanHand::<AllInTriplets>::new(1, 2)], &Number(Green, 6));
         let options: HashSet<_, RandomState> = HashSet::from_iter(options.iter().copied());
 
         let expected_options = HashSet::from_iter(

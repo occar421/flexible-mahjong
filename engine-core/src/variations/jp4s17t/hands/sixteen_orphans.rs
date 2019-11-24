@@ -66,8 +66,9 @@ impl YakumanHand<SixteenOrphans> {
     }
 }
 
-impl Hand<PlayerHandJp4s17t> for YakumanHand<SixteenOrphans> {
+impl Hand for YakumanHand<SixteenOrphans> {
     type Point = WinningPoint;
+    type PlayerHand = PlayerHandJp4s17t;
     type Tile = Tile;
 
     fn test_completion_on_drawing(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {

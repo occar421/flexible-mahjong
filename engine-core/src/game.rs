@@ -47,22 +47,27 @@ pub(crate) enum Meld<TTile: Tile> {
     Kong([TTile; 4], Option<Side>),
 }
 
-pub trait PlayerHand<TTile: Tile> {
-    type Point; // FIXME
+pub trait PlayerBroker {
+    // FIXME
+    type Point;
+    // FIXME
+    type PlayerHand;
+    type Tile: Tile;
+
     // trait ? = Hand<Self, Point=Self::Point, Tile=TTile>;
 
-    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<Self, Point=Self::Point, Tile=TTile>>, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
+    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHand=Self::PlayerHand, Point=Self::Point, Tile=Self::Tile>>, drawn_tile: &Self::Tile) -> Vec<TurnChoice<Self::Tile>>;
 
-    fn get_options_for_meld(&self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
+    fn get_options_for_meld(&self, discarded_tile: &Self::Tile) -> Vec<MeldChoice<Self::Tile>>;
 
-    fn discard(&mut self, drawn_tile: &TTile, tile: &TTile, index: usize);
+    fn discard(&mut self, drawn_tile: &Self::Tile, tile: &Self::Tile, index: usize);
 
-    fn add_tile_to_discard_pile(&mut self, tile: &TTile, is_used_in_meld: bool);
+    fn add_tile_to_discard_pile(&mut self, tile: &Self::Tile, is_used_in_meld: bool);
 
     fn is_ready(&self) -> bool;
 }
 
-pub trait Game {
+pub trait GameModerator {
     fn start_a_match(&mut self) {
         let mut rng = thread_rng();
         self.do_a_match_with_rng(&mut rng);

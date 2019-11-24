@@ -47,8 +47,9 @@ impl FanHand<AllInTriplets> {
     }
 }
 
-impl Hand<PlayerHandJp4s17t> for FanHand<AllInTriplets> {
+impl Hand for FanHand<AllInTriplets> {
     type Point = WinningPoint;
+    type PlayerHand = PlayerHandJp4s17t;
     type Tile = Tile;
 
     fn test_completion_on_drawing(&self, player_hand: &PlayerHandJp4s17t, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
