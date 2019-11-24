@@ -60,9 +60,9 @@ impl PlayerBroker for PlayerBrokerJp4s17t {
     type Point = WinningPoint;
     type PlayerHand = PlayerHandJp4s17t;
     type Tile = Tile;
-    // trait Hand = Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>;
+    // trait Hand = Hand<Point=Self::Point, PlayerHand=Self::PlayerHand, Tile=Self::Tile>;
 
-    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>>, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
+    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<Point=Self::Point, PlayerHand=Self::PlayerHand, Tile=Self::Tile>>, drawn_tile: &Self::Tile) -> Vec<TurnChoice<Self::Tile>> {
         let mut tiles = self.0.closed_tiles.clone();
         tiles.insert(*drawn_tile);
         let mut buckets = tiles.get_by_buckets();
@@ -84,11 +84,11 @@ impl PlayerBroker for PlayerBrokerJp4s17t {
         options // FIXME: declare-ready option
     }
 
-    fn get_options_for_meld(&self, discarded_tile: &Tile) -> Vec<MeldChoice<Tile>> { // TODO change name to when discarded
+    fn get_options_for_meld(&self, discarded_tile: &Self::Tile) -> Vec<MeldChoice<Self::Tile>> { // TODO change name to when discarded
         vec![MeldChoice::DoNothing] // FIXME
     }
 
-    fn discard(&mut self, drawn_tile: &Tile, tile: &Tile, _: usize) {
+    fn discard(&mut self, drawn_tile: &Self::Tile, tile: &Self::Tile, index: usize) {
         self.0.closed_tiles.insert(*drawn_tile);
         if self.0.closed_tiles.remove(tile) {
             return;
@@ -96,7 +96,7 @@ impl PlayerBroker for PlayerBrokerJp4s17t {
         panic!("Can't discard because they don't have it");
     }
 
-    fn add_tile_to_discard_pile(&mut self, tile: &Tile, is_used_in_meld: bool) {
+    fn add_tile_to_discard_pile(&mut self, tile: &Self::Tile, is_used_in_meld: bool) {
         self.0.discard_pile.push((*tile, is_used_in_meld));
     }
 
@@ -275,11 +275,11 @@ mod tests {
             println!("{}", tiles.into_iter().map(|t| format!("{:#?}", t)).join(" "));
         }
 
-        fn draw(&self, drawn_tile: &Self::Tile, _: &Vec<TurnChoice<Tile>>) -> TurnChoice<Tile> {
+        fn draw(&self, drawn_tile: &Self::Tile, _: &Vec<TurnChoice<Self::Tile>>) -> TurnChoice<Self::Tile> {
             TurnChoice::Discard(*drawn_tile, 0)
         }
 
-        fn consider_melding(&self, _: &Self::Tile, _: &Vec<MeldChoice<Tile>>) -> MeldChoice<Tile> {
+        fn consider_melding(&self, _: &Self::Tile, _: &Vec<MeldChoice<Self::Tile>>) -> MeldChoice<Self::Tile> {
             MeldChoice::DoNothing
         }
     }
