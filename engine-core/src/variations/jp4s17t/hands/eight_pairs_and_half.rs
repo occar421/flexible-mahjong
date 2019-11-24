@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use super::FanHand;
 
 /// 八対子半
-struct EightPairsAndHalf;
+pub(crate) struct EightPairsAndHalf;
 
 impl FanHand<EightPairsAndHalf> {
     pub(crate) fn new(closed_han: u8, open_han: u8) -> FanHand<EightPairsAndHalf> {

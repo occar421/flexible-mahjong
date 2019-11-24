@@ -2,7 +2,9 @@ use rand::prelude::*;
 use std::rc::Rc;
 use crate::players::Player;
 use crate::tile::Tile;
+use crate::hands::Hand;
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum TurnChoice<TTile: Tile> {
     /// 打牌
     Discard(TTile, usize),
@@ -46,7 +48,10 @@ pub(crate) enum Meld<TTile: Tile> {
 }
 
 pub trait PlayerHand<TTile: Tile> {
-    fn get_options_on_drawing(&self, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
+    type Point; // FIXME
+    // trait ? = Hand<Self, Point=Self::Point, Tile=TTile>;
+
+    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<Self, Point=Self::Point, Tile=TTile>>, drawn_tile: &TTile) -> Vec<TurnChoice<TTile>>;
 
     fn get_options_for_meld(&self, discarded_tile: &TTile) -> Vec<MeldChoice<TTile>>;
 

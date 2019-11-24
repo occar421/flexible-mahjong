@@ -1,5 +1,4 @@
 use crate::tile::Tile;
-use crate::game::PlayerHand;
 
 #[derive(Eq, PartialEq, Debug)]
 pub enum HandTestResult<W> {
@@ -8,10 +7,11 @@ pub enum HandTestResult<W> {
 }
 
 // 役
-pub trait Hand<TPlayerHand: PlayerHand<Self::Tile>> {
+pub trait Hand<TPlayerHandObj> {
+    // FIXME: TPlayerHandObj
     type Point;
     type Tile: Tile;
 
-    fn test_completion_on_drawing(&self, player_hand: &TPlayerHand, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point>;
-    fn test_completion_when_discarded(&self, player_hand: &TPlayerHand, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point>;
+    fn test_completion_on_drawing(&self, player_hand: &TPlayerHandObj, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point>;
+    fn test_completion_when_discarded(&self, player_hand: &TPlayerHandObj, discarded_tile: &Self::Tile) -> HandTestResult<Self::Point>;
 }

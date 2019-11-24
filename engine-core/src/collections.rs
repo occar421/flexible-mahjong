@@ -43,6 +43,13 @@ impl<T: Ord + Clone> MultiBTreeSet<T> {
     pub fn len(&self) -> usize {
         self.map.iter().fold(0, |acc, (_, &n)| acc + n)
     }
+
+    pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+        where T: Borrow<Q>,
+              Q: Ord
+    {
+        self.map.contains_key(value)
+    }
 }
 
 impl<T: Ord + Copy> FromIterator<T> for MultiBTreeSet<T> {

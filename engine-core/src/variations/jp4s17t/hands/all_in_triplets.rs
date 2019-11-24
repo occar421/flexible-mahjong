@@ -8,7 +8,7 @@ use crate::game::Meld;
 use super::FanHand;
 
 /// 対々和
-struct AllInTriplets;
+pub(crate) struct AllInTriplets;
 
 impl FanHand<AllInTriplets> {
     pub(crate) fn new(closed_han: u8, open_han: u8) -> FanHand<AllInTriplets> {

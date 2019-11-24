@@ -7,7 +7,7 @@ use std::iter::FromIterator;
 use super::YakumanHand;
 
 /// 国士無双
-struct SixteenOrphans { standard_value: u8, sixteen_wait_value: u8 }
+pub(crate) struct SixteenOrphans { standard_value: u8, sixteen_wait_value: u8 }
 
 impl YakumanHand<SixteenOrphans> {
     pub(crate) fn new(standard_value: u8, sixteen_wait_value: u8) -> YakumanHand<SixteenOrphans> {

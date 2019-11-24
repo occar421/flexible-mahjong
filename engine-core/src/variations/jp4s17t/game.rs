@@ -1,4 +1,4 @@
-use std::iter::FromIterator;
+use std::iter::{FromIterator, once};
 use std::rc::Rc;
 use rand::Rng;
 
@@ -7,6 +7,8 @@ use crate::players::Player;
 use crate::collections::MultiBTreeSet;
 
 use super::tile::{Suite, Tile};
+use crate::hands::{Hand, HandTestResult};
+use super::hands::*;
 
 const N_TILES: u8 = 9 * 4 * 4 + 4 * 4 + 4 * 4;
 
@@ -41,17 +43,43 @@ impl PlayerHandJp4s17t {
     }
 }
 
+#[cfg(test)]
+impl PlayerHandJp4s17t {
+    pub(crate) fn create<I: IntoIterator<Item=Tile>>(tiles: I, melds: Vec<Meld<Tile>>, discard_pile: Vec<(Tile, bool)>) -> PlayerHandJp4s17t {
+        PlayerHandJp4s17t {
+            closed_tiles: MultiBTreeSet::from_iter(tiles),
+            melds,
+            discard_pile,
+        }
+    }
+}
+
 impl PlayerHand<Tile> for PlayerHandJp4s17t {
-    fn get_options_on_drawing(&self, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
+    type Point = WinningPoint;
+
+    fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>>, drawn_tile: &Tile) -> Vec<TurnChoice<Tile>> {
         let mut tiles = self.closed_tiles.clone();
         tiles.insert(*drawn_tile);
-        tiles.get_by_buckets()
-            .map(|(&t, &n)| (0..n).map(move |n| TurnChoice::Discard(t, n)))
-            .flatten()
-            .collect() // FIXME
+        let mut buckets = tiles.get_by_buckets();
+        let mut options = vec![];
+        options.extend(buckets.clone().filter(|(_, &n)| n == 4).map(|(&t, _)| TurnChoice::MakeConcealedKong(t)));
+        options.extend(self.melds.iter().filter_map(|m| match m {
+            Meld::Pong([t, _, _], _) if tiles.contains(t) => Some(TurnChoice::MakeKongFromPong(*t)),
+            _ => None
+        }));
+        if possible_hands.iter().any(|h| match h.test_completion_on_drawing(self, drawn_tile) {
+            HandTestResult::Winning(_) => true,
+            _ => false
+        }) {
+            // FIXME: check sacred discard フリテン
+            // FIXME: check only closed hand 面前役
+            options.extend(once(TurnChoice::Complete));
+        };
+        options.extend(buckets.map(|(&t, &n)| (0..n).map(move |n| TurnChoice::Discard(t, n))).flatten());
+        options // FIXME: declare-ready option
     }
 
-    fn get_options_for_meld(&self, discarded_tile: &Tile) -> Vec<MeldChoice<Tile>> {
+    fn get_options_for_meld(&self, discarded_tile: &Tile) -> Vec<MeldChoice<Tile>> { // TODO change name to when discarded
         vec![MeldChoice::DoNothing] // FIXME
     }
 
@@ -110,6 +138,16 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
             self.state.players[i].set_dealt_tiles(&players_tiles[i]);
         }
 
+        let eight_pairs_and_half = FanHand::<EightPairsAndHalf>::new(2, 1);
+        let all_in_triplets = FanHand::<AllInTriplets>::new(2, 2);
+        let sixteen_orphans = YakumanHand::<SixteenOrphans>::new(1, 2);
+
+        let static_hands: [&dyn Hand<PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>; 3] = [
+            &eight_pairs_and_half,
+            &all_in_triplets,
+            &sixteen_orphans
+        ];
+
         // ドラ表示牌 数
         let mut n_rewards = 1;
 
@@ -118,7 +156,8 @@ impl<P: Player<Tile=Tile> + Sized> GameJp4s17t<P> {
         while let Some(drawn_tile) = wall.pop() {
             let player = &self.state.players[turn_index];
             let hand = &mut hands[turn_index];
-            let options = hand.get_options_on_drawing(&drawn_tile);
+            let possible_hands = static_hands.to_vec();
+            let options = hand.get_options_on_drawing(&possible_hands, &drawn_tile);
 
             // 自摸
             let choice = player.draw(&drawn_tile, &options);
@@ -202,11 +241,19 @@ mod tests {
 
     use itertools::Itertools;
 
-    use crate::game::{Game, MeldChoice, TurnChoice};
+    use crate::game::{Game, MeldChoice, TurnChoice, PlayerHand};
     use crate::players::Player;
 
     use super::GameJp4s17t;
     use super::super::tile::Tile;
+    use super::PlayerHandJp4s17t;
+    use super::super::tile::Tile::{Number, Wind, Symbol};
+    use super::super::tile::Suite::{Green, Red, White, Black};
+    use super::FanHand;
+    use super::super::hands::AllInTriplets;
+    use std::collections::HashSet;
+    use std::collections::hash_map::RandomState;
+    use std::iter::{FromIterator, once};
 
     pub struct OnlyDiscardFakePlayer;
 
@@ -248,9 +295,6 @@ mod tests {
 
     #[test]
     fn test_match_core() {
-        use super::super::tile::Tile::{Number, Wind, Symbol};
-        use super::super::tile::Suite::{Green, Red, White, Black};
-
         let players = [
             Rc::new(OnlyDiscardFakePlayer::new()),
             Rc::new(OnlyDiscardFakePlayer::new()),
@@ -273,5 +317,23 @@ mod tests {
             &(2..=8).collect::<Vec<_>>().iter().map(|&i| vec![i, i]).flatten().map(|i| Number(Black, i)).collect(),
             &[&all_green, &sixteen_orphans, &four_winds, &four_dragons],
         );
+    }
+
+    #[test]
+    fn test_get_options_on_drawing() {
+        let player_hand = PlayerHandJp4s17t::create((1..=4).map(|n| Number(Green, n)).map(|t| vec![t, t, t, t]).flatten(), vec![], vec![]);
+        let options = player_hand.get_options_on_drawing(&vec![&FanHand::<AllInTriplets>::new(1, 2)], &Number(Green, 6));
+        let options: HashSet<_, RandomState> = HashSet::from_iter(options.iter().copied());
+
+        let expected_options = HashSet::from_iter(
+            once(TurnChoice::Discard(Number(Green, 6), 0))
+                .chain((1..=4).map(|n| vec![
+                    TurnChoice::MakeConcealedKong(Number(Green, n)),
+                    TurnChoice::Discard(Number(Green, n), 0),
+                    TurnChoice::Discard(Number(Green, n), 1),
+                    TurnChoice::Discard(Number(Green, n), 2),
+                    TurnChoice::Discard(Number(Green, n), 3),
+                ]).flatten()));
+        assert_eq!(options, expected_options);
     }
 }

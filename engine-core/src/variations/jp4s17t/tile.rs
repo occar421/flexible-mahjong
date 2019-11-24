@@ -6,7 +6,7 @@ use {
     std::fmt::{Debug, Error, Formatter},
 };
 
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub(crate) enum Suite {
     /// Green, East, S
     /// 發、東、索子
@@ -24,7 +24,7 @@ pub(crate) enum Suite {
 
 impl crate::tile::Suite for Suite {}
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub(crate) enum Tile {
     /// 数牌
     Number(Suite, u8),
