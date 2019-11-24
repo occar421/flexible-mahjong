@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use rand::Rng;
 
-use crate::game::{GameState, N_PLAYER, PlayerBroker as _, TurnChoice};
+use crate::game::{GameState, N_PLAYER, PlayerBroker as _, TurnChoice, MeldChoice};
 use crate::players::Player;
 
 use super::super::tile::{Suite, Tile};
@@ -61,7 +61,7 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
         // start game
         while let Some(drawn_tile) = wall.pop() {
             let player = &self.state.players[turn_index];
-            let broker = &mut brokers[turn_index];
+            let broker = &brokers[turn_index];
             let possible_hands = static_hands.to_vec();
             let options = broker.get_options_on_drawing(&possible_hands, &drawn_tile);
 
@@ -70,9 +70,30 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
 
             match choice {
                 TurnChoice::Discard(discarded_tile, index) => {
-                    broker.discard(&drawn_tile, &discarded_tile, index);
-                    broker.add_tile_to_discard_pile(&discarded_tile, false);
+                    {
+                        let broker = &mut brokers[turn_index];
+                        broker.discard(&drawn_tile, &discarded_tile, index);
+                    }
+
+                    let other_player_choices: Vec<_> = (1..N_PLAYER)
+                        .map(|i| {
+                            let i = (i + turn_index) % N_PLAYER;
+                            let possible_hands = static_hands.to_vec();
+                            let options = brokers[i].get_options_when_discarded(true, true, &possible_hands, &discarded_tile); // FIXME
+                            let player = &self.state.players[i];
+                            (i, player.consider_melding(&discarded_tile, &options))
+                        }).collect();
+
+                    if other_player_choices.iter().any(|(_, c)| *c != MeldChoice::DoNothing) {
+                        unimplemented!()
+                    }
+
+                    {
+                        let broker = &mut brokers[turn_index];
+                        broker.add_tile_to_discard_pile(&discarded_tile, false);
+                    }
                 }
+                // TODO Robbing Kong
                 _ => unimplemented!()
             }
 

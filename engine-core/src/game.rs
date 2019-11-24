@@ -18,6 +18,7 @@ pub enum TurnChoice<TTile: Tile> {
     Complete,
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum MeldChoice<TTile: Tile> {
     /// 大明槓
     MakeExposedKong,
@@ -25,8 +26,6 @@ pub enum MeldChoice<TTile: Tile> {
     MakePong,
     /// チー
     MakeChow([TTile; 2]),
-    /// 搶槓
-    RobKong,
     /// ロン
     Complete,
     DoNothing,
@@ -58,7 +57,7 @@ pub trait PlayerBroker {
 
     fn get_options_on_drawing(&self, possible_hands: &Vec<&dyn Hand<PlayerHand=Self::PlayerHand, Point=Self::Point, Tile=Self::Tile>>, drawn_tile: &Self::Tile) -> Vec<TurnChoice<Self::Tile>>;
 
-    fn get_options_for_meld(&self, discarded_tile: &Self::Tile) -> Vec<MeldChoice<Self::Tile>>;
+    fn get_options_when_discarded(&self, can_kong: bool, can_meld: bool, possible_hands: &Vec<&dyn Hand<PlayerHand=Self::PlayerHand, Point=Self::Point, Tile=Self::Tile>>, discarded_tile: &Self::Tile) -> Vec<MeldChoice<Self::Tile>>;
 
     fn discard(&mut self, drawn_tile: &Self::Tile, tile: &Self::Tile, index: usize);
 
