@@ -9,6 +9,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
+    - working-directory: ./engine-core
     - name: Build
       run: cargo build --verbose
     - name: Run tests
