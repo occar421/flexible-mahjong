@@ -1,7 +1,8 @@
 use crate::hands::{Hand, HandTestResult};
 use super::super::tile::{Tile, Suite};
 use itertools::Itertools;
-use super::super::game::{PlayerHandJp4s17t, WinningPoint};
+use super::super::game::WinningPoint;
+use super::super::game::player_hand::PlayerHand;
 use std::collections::{HashMap, BTreeSet};
 use std::iter::FromIterator;
 use super::YakumanHand;
@@ -25,7 +26,7 @@ impl YakumanHand<SixteenOrphans> {
         Tile::Symbol(Suite::Green), Tile::Symbol(Suite::Red), Tile::Symbol(Suite::White), Tile::Symbol(Suite::Black)
     ];
 
-    fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult<WinningPoint> {
+    fn test(&self, player_hand: &PlayerHand, new_tile: &Tile) -> HandTestResult<WinningPoint> {
         if player_hand.melds.len() != 0 {
             return HandTestResult::Nothing;
         }
@@ -68,7 +69,7 @@ impl YakumanHand<SixteenOrphans> {
 
 impl Hand for YakumanHand<SixteenOrphans> {
     type Point = WinningPoint;
-    type PlayerHand = PlayerHandJp4s17t;
+    type PlayerHand = PlayerHand;
     type Tile = Tile;
 
     fn test_completion_on_drawing(&self, player_hand: &Self::PlayerHand, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
@@ -84,7 +85,8 @@ impl Hand for YakumanHand<SixteenOrphans> {
 mod tests {
     use super::SixteenOrphans;
     use crate::hands::{Hand, HandTestResult};
-    use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
+    use super::super::super::game::WinningPoint;
+    use super::super::super::game::player_hand::PlayerHand;
     use super::super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::super::YakumanHand;
@@ -92,7 +94,7 @@ mod tests {
     #[test]
     fn when_drawn_wins_1_wait() {
         let matcher = YakumanHand::<SixteenOrphans>::new(1, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             vec![Number(Green, 1)].iter().chain(
                 YakumanHand::<SixteenOrphans>::TERMINALS_AND_HONERS.iter()
                     .filter(|&t| t != &Number(Green, 9))).copied(),
@@ -104,7 +106,7 @@ mod tests {
     #[test]
     fn when_drawn_wins_16_waits() {
         let matcher = YakumanHand::<SixteenOrphans>::new(1, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             YakumanHand::<SixteenOrphans>::TERMINALS_AND_HONERS.iter().copied(),
             vec![],
             vec![],
@@ -116,7 +118,7 @@ mod tests {
     #[test]
     fn when_drawn_nothing_happens() {
         let matcher = YakumanHand::<SixteenOrphans>::new(1, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             YakumanHand::<SixteenOrphans>::TERMINALS_AND_HONERS.iter().copied(),
             vec![],
             vec![],

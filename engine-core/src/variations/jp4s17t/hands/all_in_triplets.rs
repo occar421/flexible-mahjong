@@ -1,7 +1,8 @@
 use crate::hands::{Hand, HandTestResult};
 use super::super::tile::Tile;
 use itertools::Itertools;
-use super::super::game::{PlayerHandJp4s17t, WinningPoint};
+use super::super::game::WinningPoint;
+use super::super::game::player_hand::PlayerHand;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use crate::game::Meld;
@@ -19,7 +20,7 @@ impl FanHand<AllInTriplets> {
         }
     }
 
-    fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult<WinningPoint> {
+    fn test(&self, player_hand: &PlayerHand, new_tile: &Tile) -> HandTestResult<WinningPoint> {
         if !player_hand.melds.iter().all(|m| match m {
             Meld::Kong(_, _) | Meld::Pong(_, _) => true,
             _ => false
@@ -49,7 +50,7 @@ impl FanHand<AllInTriplets> {
 
 impl Hand for FanHand<AllInTriplets> {
     type Point = WinningPoint;
-    type PlayerHand = PlayerHandJp4s17t;
+    type PlayerHand = PlayerHand;
     type Tile = Tile;
 
     fn test_completion_on_drawing(&self, player_hand: &Self::PlayerHand, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
@@ -65,7 +66,8 @@ impl Hand for FanHand<AllInTriplets> {
 mod tests {
     use super::AllInTriplets;
     use crate::hands::{Hand, HandTestResult};
-    use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
+    use super::super::super::game::WinningPoint;
+    use super::super::super::game::player_hand::PlayerHand;
     use super::super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::super::FanHand;
@@ -76,7 +78,7 @@ mod tests {
     /// 裸単騎待ち
     fn when_drawn_wins_only_one_tile() {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             vec![Number(Green, 6)],
             (1..=5).map(|i| {
                 let t = Number(Green, i);
@@ -91,7 +93,7 @@ mod tests {
     #[test]
     fn when_drawn_wins_with_double_wait() {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             vec![Number(Green, 5), Number(Green, 5), Number(Green, 6), Number(Green, 6)],
             (1..=4).map(|i| {
                 let t = Number(Green, i);
@@ -106,7 +108,7 @@ mod tests {
     #[test]
     fn when_drawn_nothing_happens() {
         let matcher = FanHand::<AllInTriplets>::new(2, 2);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             (1..=8).flat_map(|i| repeat(Number(Red, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));

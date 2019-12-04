@@ -4,14 +4,15 @@ use crate::game::{Meld, MeldChoice, TurnChoice};
 
 use super::super::tile::Tile;
 use crate::hands::{Hand, HandTestResult};
-use super::{PlayerHandJp4s17t, WinningPoint};
+use super::WinningPoint;
+use super::player_hand::PlayerHand;
 use std::collections::HashMap;
 
-pub(crate) struct PlayerBroker(pub(crate) PlayerHandJp4s17t);
+pub(crate) struct PlayerBroker(pub(crate) PlayerHand);
 
 impl crate::game::PlayerBroker for PlayerBroker {
     type Point = WinningPoint;
-    type PlayerHand = PlayerHandJp4s17t;
+    type PlayerHand = PlayerHand;
     type Tile = Tile;
     // trait Hand = Hand<Point=Self::Point, PlayerHand=Self::PlayerHand, Tile=Self::Tile>;
 
@@ -98,7 +99,7 @@ mod tests {
     use crate::game::{TurnChoice, PlayerBroker as _, MeldChoice};
 
     use super::PlayerBroker;
-    use super::super::PlayerHandJp4s17t;
+    use super::super::player_hand::PlayerHand;
     use super::super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::super::super::hands::{FanHand, AllInTriplets};
@@ -108,7 +109,7 @@ mod tests {
 
     #[test]
     fn test_get_options_on_drawing() {
-        let player_hand = PlayerHandJp4s17t::create(
+        let player_hand = PlayerHand::create(
             (1..=4).flat_map(|n| repeat(Number(Green, n)).take(4)),
             vec![], vec![]);
         let broker = PlayerBroker(player_hand);
@@ -129,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_get_options_when_discarded() {
-        let player_hand = PlayerHandJp4s17t::create(
+        let player_hand = PlayerHand::create(
             (1..=5).flat_map(|n| repeat(Number(Green, n)).take(3)).chain(once(Number(Green, 6))),
             vec![], vec![]);
         let broker = PlayerBroker(player_hand);

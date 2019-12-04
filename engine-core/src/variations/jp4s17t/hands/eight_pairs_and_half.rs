@@ -1,7 +1,8 @@
 use crate::hands::{Hand, HandTestResult};
 use super::super::tile::Tile;
 use itertools::Itertools;
-use super::super::game::{PlayerHandJp4s17t, WinningPoint};
+use super::super::game::WinningPoint;
+use super::super::game::player_hand::PlayerHand;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use super::FanHand;
@@ -18,7 +19,7 @@ impl FanHand<EightPairsAndHalf> {
         }
     }
 
-    fn test(&self, player_hand: &PlayerHandJp4s17t, new_tile: &Tile) -> HandTestResult<WinningPoint> {
+    fn test(&self, player_hand: &PlayerHand, new_tile: &Tile) -> HandTestResult<WinningPoint> {
         let mut tiles = player_hand.closed_tiles.clone();
         tiles.insert(*new_tile);
         let groups = tiles.get_by_buckets();
@@ -34,7 +35,7 @@ impl FanHand<EightPairsAndHalf> {
 
 impl Hand for FanHand<EightPairsAndHalf> {
     type Point = WinningPoint;
-    type PlayerHand = PlayerHandJp4s17t;
+    type PlayerHand = PlayerHand;
     type Tile = Tile;
 
     fn test_completion_on_drawing(&self, player_hand: &Self::PlayerHand, drawn_tile: &Self::Tile) -> HandTestResult<Self::Point> {
@@ -50,7 +51,8 @@ impl Hand for FanHand<EightPairsAndHalf> {
 mod tests {
     use super::EightPairsAndHalf;
     use crate::hands::{Hand, HandTestResult};
-    use super::super::super::game::{PlayerHandJp4s17t, WinningPoint};
+    use super::super::super::game::WinningPoint;
+    use super::super::super::game::player_hand::PlayerHand;
     use super::super::super::tile::Tile::{Number, Wind, Symbol};
     use super::super::super::tile::Suite::{Green, Red, White, Black};
     use super::FanHand;
@@ -59,7 +61,7 @@ mod tests {
     #[test]
     fn when_drawn_wins() {
         let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             (1..=8).flat_map(|i| repeat(Number(Green, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Green, 1));
@@ -69,7 +71,7 @@ mod tests {
     #[test]
     fn when_drawn_nothing_happens() {
         let matcher = FanHand::<EightPairsAndHalf>::new(2, 1);
-        let hand = PlayerHandJp4s17t::create(
+        let hand = PlayerHand::create(
             (1..=8).flat_map(|i| repeat(Number(Red, i)).take(2)),
             vec![], vec![]);
         let result = matcher.test_completion_on_drawing(&hand, &Number(Red, 9));

@@ -7,8 +7,9 @@ use crate::players::Player;
 use super::super::tile::{Suite, Tile};
 use crate::hands::Hand;
 use super::super::hands::*;
-use super::{PlayerHandJp4s17t, WinningPoint};
+use super::WinningPoint;
 use super::player_broker::PlayerBroker;
+use super::player_hand::PlayerHand;
 use super::N_TILES;
 
 pub(crate) struct GameModerator<P: Player + Sized> {
@@ -34,10 +35,10 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
         let supplemental_tiles = dead_wall;
 
         let mut brokers: [_; N_PLAYER] = [
-            PlayerBroker(PlayerHandJp4s17t::new(players_tiles[0].clone())),
-            PlayerBroker(PlayerHandJp4s17t::new(players_tiles[1].clone())),
-            PlayerBroker(PlayerHandJp4s17t::new(players_tiles[2].clone())),
-            PlayerBroker(PlayerHandJp4s17t::new(players_tiles[3].clone())),
+            PlayerBroker(PlayerHand::new(players_tiles[0].clone())),
+            PlayerBroker(PlayerHand::new(players_tiles[1].clone())),
+            PlayerBroker(PlayerHand::new(players_tiles[2].clone())),
+            PlayerBroker(PlayerHand::new(players_tiles[3].clone())),
         ];
 
         for i in 0..N_PLAYER {
@@ -48,7 +49,7 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
         let all_in_triplets = FanHand::<AllInTriplets>::new(2, 2);
         let sixteen_orphans = YakumanHand::<SixteenOrphans>::new(1, 2);
 
-        let static_hands: [&dyn Hand<PlayerHand=PlayerHandJp4s17t, Point=WinningPoint, Tile=Tile>; 3] = [
+        let static_hands: [&dyn Hand<PlayerHand=PlayerHand, Point=WinningPoint, Tile=Tile>; 3] = [
             &eight_pairs_and_half,
             &all_in_triplets,
             &sixteen_orphans
