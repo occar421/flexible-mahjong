@@ -46,6 +46,14 @@ pub(crate) enum Meld<TTile: Tile> {
     Kong([TTile; 4], Option<Side>),
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub(crate) enum ClosedHandPart<TTile: Tile> {
+    Double(TTile),
+    Triple(TTile),
+    SequenceTrio([TTile; 3]),
+}
+// TODO 国士無双や七対子向けに Single や複数 Pair もありにする？
+
 pub trait PlayerBroker {
     // FIXME
     type Point;

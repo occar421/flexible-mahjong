@@ -1,11 +1,11 @@
 use std::rc::Rc;
 use rand::Rng;
 
-use crate::game::{GameState, N_PLAYER, PlayerBroker as _, TurnChoice, MeldChoice};
+use crate::game::{GameState, N_PLAYER, PlayerBroker as _, TurnChoice, MeldChoice, ClosedHandPart};
 use crate::players::Player;
 
 use super::super::tile::{Suite, Tile};
-use crate::hands::Hand;
+use crate::hands::{Hand, HandTestResult};
 use super::super::hands::*;
 use super::WinningPoint;
 use super::player_broker::PlayerBroker;
@@ -21,6 +21,24 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
         GameModerator {
             state: GameState::new(players)
         }
+    }
+
+    // TODO Hook 形式の役計算
+    // 普通の combination
+    // 七対子・国士無双・立直・ドラ・海底・平和のような、 after combination
+
+    fn calculate_hand_on_drawing(&self, player_hand: &PlayerHand, possible_hands: &Vec<&dyn Hand<Point=WinningPoint, PlayerHand=PlayerHand, Tile=Tile>>, drawn_tile: &Tile) -> Vec<()> {
+        possible_hands.iter().filter_map(|h| match h.test_completion_on_drawing(player_hand, drawn_tile) {
+            HandTestResult::Winning(w) => Some(w),
+            _ => None
+        }); // FIXME これでは組み換えをしている
+        // 1 2 3 5 6 7 8 9 t (7)
+        // 1 2 3
+        // 1 2 3
+        // ピンフ or 三暗刻
+        // ここで test_completion はやめる。
+        // TODO 組み合わせ製造機をベースに
+        unimplemented!()
     }
 
     // can we generalize this function like match_jp ?
@@ -86,6 +104,7 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
                         }).collect();
 
                     if other_player_choices.iter().any(|(_, c)| *c != MeldChoice::DoNothing) {
+                        // TODO ロン上がり
                         unimplemented!()
                     }
 
@@ -93,6 +112,11 @@ impl<P: Player<Tile=Tile> + Sized> GameModerator<P> {
                         let broker = &mut brokers[turn_index];
                         broker.add_tile_to_discard_pile(&discarded_tile, false);
                     }
+                }
+                TurnChoice::Complete => {
+                    // TODO here
+                    self.calculate_hand_on_drawing(&broker.0, &possible_hands, &drawn_tile);
+                    unimplemented!()
                 }
                 // TODO Robbing Kong
                 _ => unimplemented!()
@@ -156,13 +180,16 @@ impl<P: Player<Tile=Tile> + Sized> crate::game::GameModerator for GameModerator<
                 if !ready_players.iter().find(|&&i| i == self.state.dealer_index).is_none() {
                     // move dealer if it was not ready
                     self.state.dealer_index = (self.state.dealer_index + 1) & N_PLAYER;
-                }
+                },
+            MatchResult::Winning(_) => unimplemented!()
         }
+        // TODO 点数計算
     }
 }
 
 enum MatchResult {
-    RunningOut(Vec<usize>)
+    RunningOut(Vec<usize>),
+    Winning(u8), // FIXME
 }
 
 #[cfg(test)]
