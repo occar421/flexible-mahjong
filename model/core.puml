@@ -1,0 +1,140 @@
+@startuml
+' Aggregate
+skinparam packageStyle Rectangle
+
+' Game
+package "ゲーム" <<Package>> {
+  interface Meld as "面子" <Tile>
+
+  together {
+    interface Pong as "刻子" <Tile>
+    Meld <|-- Pong
+
+    interface Chow as "順子" <Tile>
+    Meld <|-- Chow
+
+    interface Kong as "槓子" <Tile>
+    Meld <|-- Kong
+  }
+
+  class ExposedPong as "明刻子" <Tile>
+  Pong <|-- ExposedPong
+
+  class ExposedChow as "明順子" <Tile>
+  Chow <|-- ExposedChow
+
+  class Progress as "進行状況" {
+    ' TODO
+    局: [場風,integer]
+    ' TODO
+    本場数: integer
+  }
+
+  package {
+    class Table as "**雀卓**"
+    Table --> Progress
+
+    class WallTiles as "壁牌" <Tile>
+    Table --> "0..*" WallTiles
+
+    class SupplementalTiles as "嶺上牌" <Tile>
+    Table --> "0..*" SupplementalTiles
+
+    class RewardIndicationTiles as "ドラ表示牌" <Tile> {
+      ' isOpen
+      is公開: boolean
+    }
+    Table --> "*" RewardIndicationTiles
+  }
+
+  package {
+    class Player as "**プレイヤー**" {
+      ' point
+      持ち点: integer
+    }
+    Table <--> "1..n" Player
+
+    class p_Hand as "手持牌" <Tile>
+    Player --> "*" p_Hand
+
+    class DiscardedTiles as "河" <Tile>
+    Player --> "0..*" DiscardedTiles
+
+    class ExposedMelds as "公開面子" <Tile>
+    Player --> "0..*" ExposedMelds
+    ExposedMelds o--> "0..*" ExposedPong
+    ExposedMelds o--> "0..*" ExposedChow
+    ExposedMelds o--> "0..*" Kong
+
+  }
+}
+
+' Rule
+package "ルール" <<Package>> {
+  abstract Tile as "牌" <Tile>
+
+  interface r_Hand as "役" <Tile>
+
+  class AllTriplets as "対々和" <Tile>
+  r_Hand <|-- AllTriplets
+
+  class AllGreen as "緑一色" <Tile>
+  r_Hand <|-- AllGreen
+
+  ' TODO
+
+  class PointCalculator as "点数計算サービス" {
+        ' calculate
+    計算(進行状況,ドラ牌[],役): integer
+  }
+  PointCalculator ..> Progress
+  PointCalculator ..> r_Hand
+
+  class Configuration as "設定" {
+    ' is "double Yakuman" enabled
+    isダブル役満有り: boolean
+    ...
+  }
+  PointCalculator --> Configuration
+}
+
+' Tactic
+package "戦術" <<Package>> {
+  interface Command as "コマンド"
+  enum MakePong as "ポン" <Tile>
+  Command <|-- MakePong
+  enum MakeChow as "チー" <Tile>
+  Command <|-- MakeChow
+  enum Ignore as "無視"
+  Command <|-- Ignore
+  enum Complete as "上がり"
+  Command <|-- Complete
+  enum Discard as "打牌" <Tile>
+  Command <|-- Discard
+  ' TODO
+
+  interface PolicyAfterOtherPlayersAction as "他家行動後ポリシー" {
+    行動決定（？）: 他家行動後コマンド
+  }
+  Player --> PolicyAfterOtherPlayersAction
+  abstract CommandAfterOtherPlayersAction as "他家行動後コマンド"
+  PolicyAfterOtherPlayersAction ..> CommandAfterOtherPlayersAction
+  CommandAfterOtherPlayersAction -- Ignore
+  CommandAfterOtherPlayersAction -- MakePong
+  CommandAfterOtherPlayersAction -- MakeChow
+  CommandAfterOtherPlayersAction -- Complete
+
+  interface PolicyAfterDrawing as "自摸後ポリシー" {
+    行動決定(？): 自摸後コマンド
+  }
+  Player --> PolicyAfterDrawing
+  interface CommandAfterDrawing as "自摸後コマンド"
+  PolicyAfterDrawing ..> CommandAfterDrawing
+  CommandAfterDrawing -- Ignore
+  CommandAfterDrawing -- Complete
+  CommandAfterDrawing -- Discard
+}
+
+hide circle
+hide empty members
+@enduml
