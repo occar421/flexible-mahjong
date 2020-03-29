@@ -24,27 +24,30 @@ package "ゲーム" <<Package>> {
   Chow <|-- ExposedChow
 
   class Progress as "進行状況" {
-    ' TODO
+    ' hand: [round, handNumberInRound]
     局: [場風,integer]
-    ' TODO
+    ' extraHandNumber
     本場数: integer
   }
 
   package {
-    class Table as "**雀卓**"
+    class Table as "**雀卓**" {
+      ' deal tiles
+      配牌(): void
+    }
     Table --> Progress
 
     class WallTiles as "壁牌" <Tile>
     Table --> "0..*" WallTiles
 
     class SupplementalTiles as "嶺上牌" <Tile>
-    Table --> "0..*" SupplementalTiles
+    Table --> "0..*" SupplementalTiles: 通常4枚以下
 
     class RewardIndicationTiles as "ドラ表示牌" <Tile> {
       ' isOpen
       is公開: boolean
     }
-    Table --> "*" RewardIndicationTiles
+    Table --> "*" RewardIndicationTiles: 通常4枚x2
   }
 
   package {
@@ -52,16 +55,16 @@ package "ゲーム" <<Package>> {
       ' point
       持ち点: integer
     }
-    Table <--> "1..n" Player
+    Table <--> "1..*" Player: 通常4人
 
     class p_Hand as "手持牌" <Tile>
-    Player --> "*" p_Hand
+    Player --> "*" p_Hand: 通常14枚以下
 
     class DiscardedTiles as "河" <Tile>
     Player --> "0..*" DiscardedTiles
 
-    class ExposedMelds as "公開面子" <Tile>
-    Player --> "0..*" ExposedMelds
+    class ExposedMelds as "公開面子"
+    Player --> "0..*" ExposedMelds: 通常4組以下
     ExposedMelds o--> "0..*" ExposedPong
     ExposedMelds o--> "0..*" ExposedChow
     ExposedMelds o--> "0..*" Kong
@@ -73,15 +76,32 @@ package "ゲーム" <<Package>> {
 package "ルール" <<Package>> {
   abstract Tile as "牌" <Tile>
 
+  interface PointSystem as "得点系"
+  class NormalSystem as "通常システム"
+  PointSystem <|-- NormalSystem
+  class UnlimitedSystem as "青天井"
+  PointSystem <|-- UnlimitedSystem
+
   interface r_Hand as "役" <Tile>
+  r_Hand -- PointSystem
+  enum NormalYaku as "通常役" {
+    ' "fan"
+    飜数: integer
+  }
+  r_Hand -- NormalYaku
+  enum YakumanYaku as "役満役"
+  r_Hand -- YakumanYaku
 
-  class AllTriplets as "対々和" <Tile>
-  r_Hand <|-- AllTriplets
+  together {
+    class AllTriplets as "対々和" <Tile>
+    r_Hand <|-- AllTriplets
 
-  class AllGreen as "緑一色" <Tile>
-  r_Hand <|-- AllGreen
+    class AllGreen as "緑一色" <Tile>
+    r_Hand <|-- AllGreen
 
-  ' TODO
+    abstract joker as "*" <Tile>
+    r_Hand <|-- joker
+  }
 
   class PointCalculator as "点数計算サービス" {
         ' calculate
@@ -89,13 +109,17 @@ package "ルール" <<Package>> {
   }
   PointCalculator ..> Progress
   PointCalculator ..> r_Hand
+  PointCalculator --> PointSystem
 
-  class Configuration as "設定" {
+  class PointCalculationConfiguration as "設定" {
     ' is "double Yakuman" enabled
     isダブル役満有り: boolean
     ...
   }
-  PointCalculator --> Configuration
+  PointCalculator --> PointCalculationConfiguration
+
+  class TileDealingSpec as "配牌仕様"
+  Table --> TileDealingSpec
 }
 
 ' Tactic
