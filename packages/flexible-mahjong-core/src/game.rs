@@ -1,9 +1,11 @@
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
+use arrayvec::ArrayVec;
+use itertools::Itertools;
 
 pub trait Concept {
-    type Tile;
+    type Tile: Copy;
     type Meld;
     type Action;
 }
@@ -14,7 +16,7 @@ struct DealtResult<C: Concept> {
     wall_tiles: Vec<C::Tile>,
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
-    player_tiles: [(Vec<C::Tile>, Seat); 4],
+    player_tiles: [(Vec<C::Tile>, Seat); PLAYERS_COUNT],
 }
 
 pub trait TileDealingSpec<C: Concept> {
@@ -24,16 +26,16 @@ pub trait TileDealingSpec<C: Concept> {
 struct Table<C: Concept>(Rc<RefCell<TableContent<C>>>);
 
 struct TableContent<C: Concept> {
-    tile_dealing_spec: Box<dyn TileDealingSpec<C>>,
+    tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
     wall_tiles: Vec<C::Tile>,
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
     progress: Progress,
-    players: RefCell<Option<[(Player<C>, Seat); PLAYERS_COUNT]>>,
+    players: RefCell<Option<ArrayVec<[(Player<C>, Seat); PLAYERS_COUNT]>>>,
 }
 
 impl<C: Concept> Table<C> {
-    pub fn new(tile_dealing_spec: Box<dyn TileDealingSpec<C>>) -> Table<C> {
+    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
         Table(Rc::new(RefCell::new(
             TableContent {
                 tile_dealing_spec,
@@ -45,24 +47,44 @@ impl<C: Concept> Table<C> {
             })))
     }
 
-    fn map_player(&self, player: (Box<dyn ActionPolicy<C>>, Seat)) -> (Player<C>, Seat) {
+    fn map_player(&self, player: (Rc<Box<dyn ActionPolicy<C>>>, Seat)) -> (Player<C>, Seat) {
         let self_ref = Rc::downgrade(&self.0.clone());
         (Player::new(self_ref, player.0), player.1)
     }
 
-    fn join_users(&mut self, players: [(Box<dyn ActionPolicy<C>>, Seat); PLAYERS_COUNT]) {
-        let [player0, player1, player2, player3] = players;
-        // TODO check duplication
-        self.borrow_mut().players.replace(Some([
-            self.map_player(player0),
-            self.map_player(player1),
-            self.map_player(player2),
-            self.map_player(player3),
-        ]));
+    fn join_users(&mut self, players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT]) {
+        let players = ArrayVec::from(players);
+
+        {
+            let groups = players.iter().group_by(|(_, s)| s);
+            let a = groups.into_iter().collect_vec();
+            if a.len() != PLAYERS_COUNT {
+                panic!("Wrong arg `players`: seats should be unique")
+            }
+        }
+
+        self.borrow_mut().players.replace(
+            Some(players.iter().map(|(p, s)| self.map_player((p.clone(), *s))).collect())
+        );
     }
 
     fn deal_tiles(&mut self) {
+        {
+            if self.borrow().players.borrow().is_none() {
+                panic!("Should call after join_users")
+            }
+        }
+
         let DealtResult { wall_tiles, supplemental_tiles, reward_indication_tiles, player_tiles } = self.borrow().tile_dealing_spec.deal();
+
+        {
+            let groups = player_tiles.iter().group_by(|(_, s)| s);
+            let a = groups.into_iter().collect_vec();
+            if a.len() != PLAYERS_COUNT {
+                panic!("Wrong arg `player_tiles`: seats should be unique")
+            }
+        }
+
         let mut table = self.borrow_mut();
         table.wall_tiles = wall_tiles;
         table.supplemental_tiles = supplemental_tiles;
@@ -71,11 +93,12 @@ impl<C: Concept> Table<C> {
         if let Some(ref mut players) = *players {
             for (tiles, seat) in player_tiles.iter() {
                 let position = players.iter().position(|(_, seat2)| seat2 == seat).unwrap();
-                players[position]
+                let player = players.get_mut(position).unwrap();
+                player.0.concealed_tiles = tiles.clone();
+                player.0.exposed_melds = vec![];
+                player.0.discarded_tiles = vec![];
             }
         }
-        // table.players.borrow_mut().expect("Player should have joined");
-        // let mut players = table.players.expect("Player should have joined");
     }
 }
 
@@ -128,7 +151,7 @@ pub trait ActionPolicy<C: Concept> {}
 
 struct Player<C: Concept> {
     point: u32,
-    action_policy: Box<dyn ActionPolicy<C>>,
+    action_policy: Rc<Box<dyn ActionPolicy<C>>>,
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
     discarded_tiles: Vec<C::Tile>,
@@ -136,7 +159,7 @@ struct Player<C: Concept> {
 }
 
 impl<C: Concept> Player<C> {
-    fn new<'a>(table: Weak<RefCell<TableContent<C>>>, action_policy: Box<dyn ActionPolicy<C>>) -> Player<C> {
+    fn new<'a>(table: Weak<RefCell<TableContent<C>>>, action_policy: Rc<Box<dyn ActionPolicy<C>>>) -> Player<C> {
         Player {
             point: 0,
             action_policy,
@@ -150,34 +173,61 @@ impl<C: Concept> Player<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::game::{Table, TileDealingSpec, Concept, DealtResult};
-    use crate::game::Seat::East;
+    use crate::game::{Table, TileDealingSpec, Concept, DealtResult, ActionPolicy, Seat};
+    use std::rc::Rc;
 
-    struct ConceptMock;
+    struct MockConcept;
 
-    impl Concept for ConceptMock {
+    impl Concept for MockConcept {
         type Tile = ();
         type Meld = ();
         type Action = ();
     }
 
-    struct SpecMock;
+    struct MockTileDealingSpec;
 
-    impl TileDealingSpec<ConceptMock> for SpecMock {
-        fn deal(&self) -> DealtResult<ConceptMock> {
+    impl TileDealingSpec<MockConcept> for MockTileDealingSpec {
+        fn deal(&self) -> DealtResult<MockConcept> {
             DealtResult {
                 wall_tiles: vec![(), ()],
                 supplemental_tiles: vec![],
                 reward_indication_tiles: vec![],
-                player_tiles: [(vec![], East); 4],
+                player_tiles: [
+                    (vec![], Seat::East),
+                    (vec![], Seat::South),
+                    (vec![], Seat::West),
+                    (vec![], Seat::North),
+                ],
             }
         }
     }
 
+    struct MockActionPolicy;
+
+    impl ActionPolicy<MockConcept> for MockActionPolicy {}
+
     #[test]
     fn a() {
-        let spec = Box::new(SpecMock {});
-        let mut table = Table::new(spec);
+        let tile_dealing_spec = {
+            let spec: Box<dyn TileDealingSpec<MockConcept>> = Box::new(MockTileDealingSpec {});
+            Rc::new(spec)
+        };
+
+        let mut table = Table::new(tile_dealing_spec);
+
+        let action_policy = {
+            let policy: Box<dyn ActionPolicy<MockConcept>> = Box::new(MockActionPolicy {});
+            Rc::new(policy)
+        };
+
+        let mock_user_seeds = [
+            (action_policy.clone(), Seat::East),
+            (action_policy.clone(), Seat::South),
+            (action_policy.clone(), Seat::West),
+            (action_policy.clone(), Seat::North),
+        ];
+
+        table.join_users(mock_user_seeds);
         table.deal_tiles();
     }
 }

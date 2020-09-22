@@ -9,3 +9,5 @@ edition = "2018"
 [lib]
 
 [dependencies]
+arrayvec = "0.5"
+itertools = "0.9"
