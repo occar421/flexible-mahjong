@@ -1,40 +1,34 @@
 @startuml
 ' Aggregate
 skinparam packageStyle Rectangle
+hide empty members
 
-' Game
-package "ゲーム" <<Package>> {
-  interface Meld as "面子" <Tile>
+package Game as "ゲーム" <<Package>> {
+  package Concept {
+      abstract Tile as "牌 [Tile]"
+      abstract Meld as "面子" <Tile>
+      Tile <. Meld
 
-  together {
-    interface Pong as "刻子" <Tile>
-    Meld <|-- Pong
-
-    interface Chow as "順子" <Tile>
-    Meld <|-- Chow
-
-    interface Kong as "槓子" <Tile>
-    Meld <|-- Kong
-  }
-
-  class ExposedPong as "明刻子" <Tile>
-  Pong <|-- ExposedPong
-
-  class ExposedChow as "明順子" <Tile>
-  Chow <|-- ExposedChow
-
-  class Progress as "進行状況" {
-    ' hand: [round, handNumberInRound]
-    局: [場風,integer]
-    ' extraHandNumber
-    本場数: integer
-  }
+      abstract Action as "行動" <Tile>
+      Meld <. Action
+    }
 
   package {
     class Table as "**雀卓**" {
       ' deal tiles
       配牌(): void
     }
+
+    interface TileDealingSpec as "配牌仕様" <Tile>
+    TileDealingSpec <- Table
+
+    class Progress as "進行状況" {
+      ' hand: [round, handNumberInRound]
+      局: [場風,integer]
+      ' extraHandNumber
+      本場数: integer
+    }
+
     Table --> Progress
 
     class WallTiles as "壁牌" <Tile>
@@ -57,33 +51,59 @@ package "ゲーム" <<Package>> {
     }
     Table <--> "1..*" Player: 通常4人
 
+    interface ActionAfterOtherPlayersActionPolicy as "他家行動後行動ポリシー"
+    Player -> ActionAfterOtherPlayersActionPolicy
+    ActionAfterOtherPlayersActionPolicy ..> Action
+
+    interface ActionAfterDrawingPolicy as "自摸後行動ポリシー"
+    Player -> ActionAfterDrawingPolicy
+    ActionAfterDrawingPolicy ..> Action
+
     class p_Hand as "手持牌" <Tile>
     Player --> "*" p_Hand: 通常14枚以下
 
     class DiscardedTiles as "河" <Tile>
     Player --> "0..*" DiscardedTiles
 
-    class ExposedMelds as "公開面子"
+    class ExposedMelds as "公開面子" <Tile>
     Player --> "0..*" ExposedMelds: 通常4組以下
-    ExposedMelds o--> "0..*" ExposedPong
-    ExposedMelds o--> "0..*" ExposedChow
-    ExposedMelds o--> "0..*" Kong
-
+    ExposedMelds --> Meld
   }
 }
 
-' Rule
-package "ルール" <<Package>> {
-  abstract Tile as "牌" <Tile>
+package Rule as "ルール" <<Package>> {
+  package UsingConcept as "使用Concept" {
+    class TileImpl as "使用牌"
 
-  interface PointSystem as "得点系"
-  class NormalSystem as "通常システム"
-  PointSystem <|-- NormalSystem
-  class UnlimitedSystem as "青天井"
-  PointSystem <|-- UnlimitedSystem
+    enum MeldImpl as "使用面子" <Tile>
+    together {
+      class Pong as "刻子" <Tile>
+      MeldImpl -- Pong
+
+      class Chow as "順子" <Tile>
+      MeldImpl -- Chow
+
+      class Kong as "槓子" <Tile>
+      MeldImpl -- Kong
+    }
+
+    enum ActionImpl as "使用行動"
+    together {
+      class MakePong as "ポン" <Tile>
+      ActionImpl -- MakePong
+      class MakeChow as "チー" <Tile>
+      ActionImpl -- MakeChow
+      class Ignore as "無視"
+      ActionImpl -- Ignore
+      class Complete as "上がり"
+      ActionImpl -- Complete
+      class Discard as "打牌" <Tile>
+      ActionImpl -- Discard
+    }
+  }
+  UsingConcept --|> Concept
 
   interface r_Hand as "役" <Tile>
-  r_Hand -- PointSystem
   enum NormalYaku as "通常役" {
     ' "fan"
     飜数: integer
@@ -104,12 +124,11 @@ package "ルール" <<Package>> {
   }
 
   class PointCalculator as "点数計算サービス" {
-        ' calculate
-    計算(進行状況,ドラ牌[],役): integer
+    ' calculate
+    計算(雀卓,役): integer
   }
-  PointCalculator ..> Progress
+  PointCalculator ..> Table
   PointCalculator ..> r_Hand
-  PointCalculator --> PointSystem
 
   class PointCalculationConfiguration as "設定" {
     ' is "double Yakuman" enabled
@@ -118,47 +137,32 @@ package "ルール" <<Package>> {
   }
   PointCalculator --> PointCalculationConfiguration
 
-  class TileDealingSpec as "配牌仕様"
-  Table --> TileDealingSpec
+  interface PointSystem as "得点系"
+  PointCalculator --> PointSystem
+  class NormalSystem as "通常システム"
+  PointSystem <|-- NormalSystem
+  class UnlimitedSystem as "青天井"
+  PointSystem <|-- UnlimitedSystem
+
+  class TileDealingSpecImpl as "配牌仕様実装"
+  TileDealingSpecImpl --|> TileDealingSpec
 }
+Rule --+ Game
 
-' Tactic
-package "戦術" <<Package>> {
-  interface Command as "コマンド"
-  enum MakePong as "ポン" <Tile>
-  Command <|-- MakePong
-  enum MakeChow as "チー" <Tile>
-  Command <|-- MakeChow
-  enum Ignore as "無視"
-  Command <|-- Ignore
-  enum Complete as "上がり"
-  Command <|-- Complete
-  enum Discard as "打牌" <Tile>
-  Command <|-- Discard
-  ' TODO
-
-  interface PolicyAfterOtherPlayersAction as "他家行動後ポリシー" {
-    行動決定（？）: 他家行動後コマンド
+package Tactics as "戦術" <<Package>> {
+  class ActionAfterOtherPlayersActionPolicyImpl as "使用他家行動後行動ポリシー" {
+    行動決定（？）: 他家行動後行動
   }
-  Player --> PolicyAfterOtherPlayersAction
-  abstract CommandAfterOtherPlayersAction as "他家行動後コマンド"
-  PolicyAfterOtherPlayersAction ..> CommandAfterOtherPlayersAction
-  CommandAfterOtherPlayersAction -- Ignore
-  CommandAfterOtherPlayersAction -- MakePong
-  CommandAfterOtherPlayersAction -- MakeChow
-  CommandAfterOtherPlayersAction -- Complete
+  ActionAfterOtherPlayersActionPolicyImpl --|> ActionAfterOtherPlayersActionPolicy
+  ActionAfterOtherPlayersActionPolicyImpl ..> ActionImpl
 
-  interface PolicyAfterDrawing as "自摸後ポリシー" {
-    行動決定(？): 自摸後コマンド
+  class ActionAfterDrawingPolicyImpl as "使用自摸後行動ポリシー" {
+    行動決定(？): 自摸後行動
   }
-  Player --> PolicyAfterDrawing
-  interface CommandAfterDrawing as "自摸後コマンド"
-  PolicyAfterDrawing ..> CommandAfterDrawing
-  CommandAfterDrawing -- Ignore
-  CommandAfterDrawing -- Complete
-  CommandAfterDrawing -- Discard
+  ActionAfterDrawingPolicyImpl --|> ActionAfterDrawingPolicy
+  ActionAfterDrawingPolicyImpl ..> ActionImpl
 }
+Tactics --+ Game
+Tactics --+ Rule
 
-hide circle
-hide empty members
 @enduml
