@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use arrayvec::ArrayVec;
 use itertools::Itertools;
+use std::sync::RwLock;
 
 pub trait Concept {
     type Tile: Copy;
@@ -23,7 +24,7 @@ pub trait TileDealingSpec<C: Concept> {
     fn deal(&self) -> DealtResult<C>;
 }
 
-struct Table<C: Concept>(Rc<RefCell<TableContent<C>>>);
+struct Table<C: Concept>(Rc<RwLock<TableContent<C>>>);
 
 struct TableContent<C: Concept> {
     tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
@@ -36,7 +37,7 @@ struct TableContent<C: Concept> {
 
 impl<C: Concept> Table<C> {
     pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
-        Table(Rc::new(RefCell::new(
+        Table(Rc::new(RwLock::new(
             TableContent {
                 tile_dealing_spec,
                 wall_tiles: vec![],
@@ -58,7 +59,7 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.borrow_mut().participants.replace(
+        self.write().unwrap().participants.replace(
             Some(players.iter()
                 .map(|(policy, seat)|
                     Participant { player: Player::new(Rc::downgrade(&self.clone()), policy.clone()), seat: *seat }
@@ -71,7 +72,7 @@ impl<C: Concept> Table<C> {
 
     fn start_game(&mut self, initial_point: i32) {
         {
-            let table = self.borrow();
+            let table = self.read().unwrap();
             let mut participants = table.participants.borrow_mut();
             if let Some(ref mut participants) = *participants {
                 for participant in participants.iter_mut() {
@@ -82,46 +83,47 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.borrow_mut().progress = Progress::get_initial();
+        self.write().unwrap().progress = Progress::get_initial();
     }
 
     fn do_hand(&mut self) {
-        let starter: Seat = self.borrow().progress.current_hand.1.into();
+        let starter: Seat = self.read().unwrap().progress.current_hand.1.into();
 
         self.deal_tiles();
 
         let mut turn = starter;
-        while let Some(tile) = self.borrow_mut().wall_tiles.pop() {
-            let table = self.borrow();
-            let participants = table.participants.borrow();
-            let turn =
-            if let Some(ref participants) = *participants {
-                let turn: u8 = turn.into();
-                participants.get(turn as usize).unwrap()
+
+        let result = loop {
+            let pop_result = { self.write().unwrap().wall_tiles.pop() };
+            if let Some(tile) = pop_result {
+                {
+                    let table = self.read().unwrap();
+                    let participants = table.participants.borrow();
+                    let turn =
+                        if let Some(ref participants) = *participants {
+                            let turn: u8 = turn.into();
+                            participants.get(turn as usize).unwrap()
+                        } else {
+                            panic!()
+                        };
+
+                    let action = turn.player.handle_draw(tile);
+                    // unimplemented!()
+                }
             } else {
-                panic!()
-            };
-
-            let action = turn.player.handle_draw(tile);
-            unimplemented!()
-
-        }
-
-        // loop {
-        //     if let Some(tile) = { self.borrow_mut().wall_tiles.pop() } {
-        //         let participants = self.borrow().bo
-        //     } else { break; }
-        // }
+                break 1; // TODO
+            }
+        };
     }
 
     fn deal_tiles(&mut self) {
         {
-            if self.borrow().participants.borrow().is_none() {
+            if self.read().unwrap().participants.borrow().is_none() {
                 panic!("Should call after join_users")
             }
         }
 
-        let DealtResult { wall_tiles, supplemental_tiles, reward_indication_tiles, player_tiles } = self.borrow().tile_dealing_spec.deal();
+        let DealtResult { wall_tiles, supplemental_tiles, reward_indication_tiles, player_tiles } = self.read().unwrap().tile_dealing_spec.deal();
 
         {
             let groups = player_tiles.iter().group_by(|(_, s)| s);
@@ -131,7 +133,7 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        let mut table = self.borrow_mut();
+        let mut table = self.write().unwrap();
         table.wall_tiles = wall_tiles;
         table.supplemental_tiles = supplemental_tiles;
         table.reward_indication_tiles = reward_indication_tiles;
@@ -146,7 +148,7 @@ impl<C: Concept> Table<C> {
 }
 
 impl<C: Concept> Deref for Table<C> {
-    type Target = Rc<RefCell<TableContent<C>>>;
+    type Target = Rc<RwLock<TableContent<C>>>;
 
     fn deref(&self) -> &Self::Target {
         &self.0
@@ -232,11 +234,11 @@ struct Player<C: Concept> {
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
     discarded_tiles: Vec<C::Tile>,
-    table: Weak<RefCell<TableContent<C>>>,
+    table: Weak<RwLock<TableContent<C>>>,
 }
 
 impl<C: Concept> Player<C> {
-    fn new<'a>(table: Weak<RefCell<TableContent<C>>>, action_policy: Rc<Box<dyn ActionPolicy<C>>>) -> Player<C> {
+    fn new<'a>(table: Weak<RwLock<TableContent<C>>>, action_policy: Rc<Box<dyn ActionPolicy<C>>>) -> Player<C> {
         Player {
             point: 0,
             action_policy,
@@ -259,9 +261,8 @@ impl<C: Concept> Player<C> {
 
     fn handle_draw(&self, drawn_tile: C::Tile) -> C::Action {
         let table = self.table.upgrade().unwrap();
-        let progress = table.borrow().progress;
-        self.action_policy.action_after_draw(drawn_tile);
-        unimplemented!()
+        let progress = table.read().unwrap().progress;
+        self.action_policy.action_after_draw(drawn_tile)
     }
 }
 
@@ -300,7 +301,8 @@ mod test {
 
     impl ActionPolicy<MockConcept> for MockActionPolicy {
         fn action_after_draw(&self, drawn_tile: char) -> () {
-            unimplemented!()
+            // unimplemented!()
+            ()
         }
     }
 
