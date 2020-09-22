@@ -36,6 +36,7 @@ impl<C: Concept> Player<C> {
 
     pub(crate) fn handle_draw(&self, drawn_tile: C::Tile) -> C::Action {
         let table = self.table.upgrade().unwrap();
+        // TODO 卓の状況をチェックして Policy が action を決める
         // let progress = table.read().unwrap().progress;
         self.action_policy.action_after_draw(drawn_tile)
     }

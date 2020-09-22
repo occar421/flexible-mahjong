@@ -45,7 +45,10 @@ impl<C: Concept> Table<C> {
         self.write().unwrap().participants.replace(
             Some(players.iter()
                 .map(|(policy, seat)|
-                    Participant { player: Player::new(Rc::downgrade(&self.clone()), policy.clone()), seat: *seat }
+                    Participant {
+                        player: Player::new(Rc::downgrade(&self.clone()), policy.clone()),
+                        seat: *seat,
+                    }
                 )
                 .sorted_by_key(|p| p.seat)
                 .collect()
@@ -91,10 +94,10 @@ impl<C: Concept> Table<C> {
                         };
 
                     let action = turn.player.handle_draw(tile);
-                    // unimplemented!()
+                    // TODO action による分岐など
                 }
             } else {
-                break 1; // TODO
+                break 1; // TODO 終局
             }
         };
     }
@@ -106,7 +109,12 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        let DealtResult { wall_tiles, supplemental_tiles, reward_indication_tiles, player_tiles } = self.read().unwrap().tile_dealing_spec.deal();
+        let DealtResult {
+            wall_tiles,
+            supplemental_tiles,
+            reward_indication_tiles,
+            player_tiles
+        } = self.read().unwrap().tile_dealing_spec.deal();
 
         {
             let groups = player_tiles.iter().group_by(|(_, s)| s);
@@ -122,7 +130,9 @@ impl<C: Concept> Table<C> {
         table.reward_indication_tiles = reward_indication_tiles;
         let mut participants = table.participants.borrow_mut();
         if let Some(ref mut participants) = *participants {
-            for (i, (tiles, _)) in player_tiles.iter().sorted_by_key(|t| t.1).enumerate() {
+            for (i, (tiles, _)) in player_tiles.iter()
+                .sorted_by_key(|t| t.1)
+                .enumerate() {
                 let participant = participants.get_mut(i).unwrap();
                 participant.player.accept_deal(tiles.clone());
             }
