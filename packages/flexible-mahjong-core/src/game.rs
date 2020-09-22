@@ -1,5 +1,6 @@
 use std::rc::{Rc, Weak};
 use std::cell::RefCell;
+use std::ops::{Deref, DerefMut};
 
 pub trait Concept {
     type Tile;
@@ -7,29 +8,40 @@ pub trait Concept {
     type Action;
 }
 
-pub trait TileDealingSpec<C: Concept> {}
+const PLAYERS_COUNT: usize = 4;
 
-struct TableFacade<C: Concept>(Rc<RefCell<Table<C>>>);
+struct DealtResult<C: Concept> {
+    wall_tiles: Vec<C::Tile>,
+    supplemental_tiles: Vec<C::Tile>,
+    reward_indication_tiles: Vec<C::Tile>,
+    player_tiles: [(Vec<C::Tile>, Seat); 4],
+}
 
-struct Table<C: Concept> {
+pub trait TileDealingSpec<C: Concept> {
+    fn deal(&self) -> DealtResult<C>;
+}
+
+struct Table<C: Concept>(Rc<RefCell<TableContent<C>>>);
+
+struct TableContent<C: Concept> {
     tile_dealing_spec: Box<dyn TileDealingSpec<C>>,
     wall_tiles: Vec<C::Tile>,
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
     progress: Progress,
-    players: Option<[(Player<C>, Seat); 4]>,
+    players: RefCell<Option<[(Player<C>, Seat); PLAYERS_COUNT]>>,
 }
 
-impl<C: Concept> TableFacade<C> {
-    pub fn new(tile_dealing_spec: Box<dyn TileDealingSpec<C>>) -> TableFacade<C> {
-        TableFacade(Rc::new(RefCell::new(
-            Table {
+impl<C: Concept> Table<C> {
+    pub fn new(tile_dealing_spec: Box<dyn TileDealingSpec<C>>) -> Table<C> {
+        Table(Rc::new(RefCell::new(
+            TableContent {
                 tile_dealing_spec,
                 wall_tiles: vec![],
                 supplemental_tiles: vec![],
                 reward_indication_tiles: vec![],
                 progress: Progress::get_initial(),
-                players: None,
+                players: RefCell::new(None),
             })))
     }
 
@@ -38,14 +50,46 @@ impl<C: Concept> TableFacade<C> {
         (Player::new(self_ref, player.0), player.1)
     }
 
-    pub fn join_users(&mut self, players: [(Box<dyn ActionPolicy<C>>, Seat); 4]) {
+    fn join_users(&mut self, players: [(Box<dyn ActionPolicy<C>>, Seat); PLAYERS_COUNT]) {
         let [player0, player1, player2, player3] = players;
-        self.0.borrow_mut().players = Some([
+        // TODO check duplication
+        self.borrow_mut().players.replace(Some([
             self.map_player(player0),
             self.map_player(player1),
             self.map_player(player2),
             self.map_player(player3),
-        ]);
+        ]));
+    }
+
+    fn deal_tiles(&mut self) {
+        let DealtResult { wall_tiles, supplemental_tiles, reward_indication_tiles, player_tiles } = self.borrow().tile_dealing_spec.deal();
+        let mut table = self.borrow_mut();
+        table.wall_tiles = wall_tiles;
+        table.supplemental_tiles = supplemental_tiles;
+        table.reward_indication_tiles = reward_indication_tiles;
+        let mut players = table.players.borrow_mut();
+        if let Some(ref mut players) = *players {
+            for (tiles, seat) in player_tiles.iter() {
+                let position = players.iter().position(|(_, seat2)| seat2 == seat).unwrap();
+                players[position]
+            }
+        }
+        // table.players.borrow_mut().expect("Player should have joined");
+        // let mut players = table.players.expect("Player should have joined");
+    }
+}
+
+impl<C: Concept> Deref for Table<C> {
+    type Target = Rc<RefCell<TableContent<C>>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<C: Concept> DerefMut for Table<C> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
@@ -72,7 +116,7 @@ enum Round {
     North,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 enum Seat {
     East,
     South,
@@ -88,11 +132,11 @@ struct Player<C: Concept> {
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
     discarded_tiles: Vec<C::Tile>,
-    table: Weak<RefCell<Table<C>>>,
+    table: Weak<RefCell<TableContent<C>>>,
 }
 
 impl<C: Concept> Player<C> {
-    fn new<'a>(table: Weak<RefCell<Table<C>>>, action_policy: Box<dyn ActionPolicy<C>>) -> Player<C> {
+    fn new<'a>(table: Weak<RefCell<TableContent<C>>>, action_policy: Box<dyn ActionPolicy<C>>) -> Player<C> {
         Player {
             point: 0,
             action_policy,
@@ -101,5 +145,39 @@ impl<C: Concept> Player<C> {
             discarded_tiles: vec![],
             table,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::game::{Table, TileDealingSpec, Concept, DealtResult};
+    use crate::game::Seat::East;
+
+    struct ConceptMock;
+
+    impl Concept for ConceptMock {
+        type Tile = ();
+        type Meld = ();
+        type Action = ();
+    }
+
+    struct SpecMock;
+
+    impl TileDealingSpec<ConceptMock> for SpecMock {
+        fn deal(&self) -> DealtResult<ConceptMock> {
+            DealtResult {
+                wall_tiles: vec![(), ()],
+                supplemental_tiles: vec![],
+                reward_indication_tiles: vec![],
+                player_tiles: [(vec![], East); 4],
+            }
+        }
+    }
+
+    #[test]
+    fn a() {
+        let spec = Box::new(SpecMock {});
+        let mut table = Table::new(spec);
+        table.deal_tiles();
     }
 }
