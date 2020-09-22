@@ -85,6 +85,25 @@ impl<C: Concept> Table<C> {
         self.borrow_mut().progress = Progress::get_initial();
     }
 
+    fn do_hand(&mut self) {
+        let starter: Seat = self.borrow().progress.current_hand.1.into();
+
+        self.deal_tiles();
+
+        let mut turn = starter;
+        let mut table = self.borrow_mut();
+        while let Some(tile) = table.wall_tiles.pop() {
+            let mut participants = table.participants.borrow_mut();
+            if let Some(ref mut participants) = *participants {
+                let turn: u8 = turn.into();
+                let turn = participants.get_mut(turn as usize).unwrap();
+
+                let action = turn.player.handle_draw(tile);
+                unimplemented!()
+            }
+        }
+    }
+
     fn deal_tiles(&mut self) {
         {
             if self.borrow().participants.borrow().is_none() {
@@ -166,6 +185,33 @@ enum Seat {
     North,
 }
 
+impl From<u8> for Seat {
+    fn from(value: u8) -> Self {
+        use Seat::*;
+
+        match value {
+            0 => East,
+            1 => South,
+            2 => West,
+            3 => North,
+            _ => panic!(format!("Invalid value: {}", value))
+        }
+    }
+}
+
+impl From<Seat> for u8 {
+    fn from(seat: Seat) -> Self {
+        use Seat::*;
+
+        match seat {
+            East => 0,
+            South => 1,
+            West => 2,
+            North => 3,
+        }
+    }
+}
+
 pub trait ActionPolicy<C: Concept> {}
 
 struct Player<C: Concept> {
@@ -194,9 +240,13 @@ impl<C: Concept> Player<C> {
     }
 
     fn accept_deal(&mut self, tiles: Vec<C::Tile>) {
-        self.concealed_tiles = tiles;
+        self.concealed_tiles = tiles; // TODO 理牌？
         self.exposed_melds = vec![];
         self.discarded_tiles = vec![];
+    }
+
+    fn handle_draw(&mut self, drawn_tile: C::Tile) -> C::Action {
+        unimplemented!()
     }
 }
 
@@ -208,7 +258,7 @@ mod test {
     struct MockConcept;
 
     impl Concept for MockConcept {
-        type Tile = ();
+        type Tile = char;
         type Meld = ();
         type Action = ();
     }
@@ -218,14 +268,14 @@ mod test {
     impl TileDealingSpec<MockConcept> for MockTileDealingSpec {
         fn deal(&self) -> DealtResult<MockConcept> {
             DealtResult {
-                wall_tiles: vec![(), ()],
-                supplemental_tiles: vec![],
-                reward_indication_tiles: vec![],
+                wall_tiles: vec!['a', 'b'],
+                supplemental_tiles: vec!['c'],
+                reward_indication_tiles: vec!['d'],
                 player_tiles: [
-                    (vec![], Seat::East),
-                    (vec![], Seat::South),
-                    (vec![], Seat::West),
-                    (vec![], Seat::North),
+                    (vec!['e'], Seat::East),
+                    (vec!['f'], Seat::South),
+                    (vec!['g'], Seat::West),
+                    (vec!['h'], Seat::North),
                 ],
             }
         }
@@ -258,6 +308,6 @@ mod test {
 
         table.join_users(mock_user_seeds);
         table.start_game(1000);
-        table.deal_tiles();
+        table.do_hand();
     }
 }
