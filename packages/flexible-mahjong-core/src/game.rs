@@ -47,11 +47,6 @@ impl<C: Concept> Table<C> {
             })))
     }
 
-    fn map_player(&self, player: (Rc<Box<dyn ActionPolicy<C>>>, Seat)) -> Participant<C> {
-        let self_ref = Rc::downgrade(&self.0.clone());
-        Participant { player: Player::new(self_ref, player.0), seat: player.1 }
-    }
-
     fn join_users(&mut self, players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT]) {
         let players = ArrayVec::from(players);
 
@@ -64,18 +59,30 @@ impl<C: Concept> Table<C> {
         }
 
         self.borrow_mut().participants.replace(
-            Some(players.iter().map(|(p, s)| self.map_player((p.clone(), *s))).collect())
+            Some(players.iter()
+                .map(|(policy, seat)|
+                    Participant { player: Player::new(Rc::downgrade(&self.clone()), policy.clone()), seat: *seat }
+                )
+                .sorted_by_key(|p| p.seat)
+                .collect()
+            )
         );
     }
 
     fn start_game(&mut self, initial_point: i32) {
-        let table = self.borrow();
-        let mut participants = table.participants.borrow_mut();
-        if let Some(ref mut participants) = *participants {
-            for participant in participants.iter_mut() {
-                participant.player.set_initial_point(initial_point);
+        {
+            let table = self.borrow();
+            let mut participants = table.participants.borrow_mut();
+            if let Some(ref mut participants) = *participants {
+                for participant in participants.iter_mut() {
+                    participant.player.set_initial_point(initial_point);
+                }
+            } else {
+                panic!("Should call after join_users")
             }
         }
+
+        self.borrow_mut().progress = Progress::get_initial();
     }
 
     fn deal_tiles(&mut self) {
@@ -101,9 +108,8 @@ impl<C: Concept> Table<C> {
         table.reward_indication_tiles = reward_indication_tiles;
         let mut participants = table.participants.borrow_mut();
         if let Some(ref mut participants) = *participants {
-            for (tiles, seat) in player_tiles.iter() {
-                let position = participants.iter().position(|p| &p.seat == seat).unwrap();
-                let participant = participants.get_mut(position).unwrap();
+            for (i, (tiles, _)) in player_tiles.iter().sorted_by_key(|t| t.1).enumerate() {
+                let participant = participants.get_mut(i).unwrap();
                 participant.player.accept_deal(tiles.clone());
             }
         }
@@ -152,7 +158,7 @@ enum Round {
     North,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 enum Seat {
     East,
     South,
