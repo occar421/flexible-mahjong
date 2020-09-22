@@ -12,7 +12,7 @@ pub trait Concept {
 
 const PLAYERS_COUNT: usize = 4;
 
-struct DealtResult<C: Concept> {
+pub struct DealtResult<C: Concept> {
     wall_tiles: Vec<C::Tile>,
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
@@ -31,7 +31,7 @@ struct TableContent<C: Concept> {
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
     progress: Progress,
-    players: RefCell<Option<ArrayVec<[(Player<C>, Seat); PLAYERS_COUNT]>>>,
+    participants: RefCell<Option<ArrayVec<[Participant<C>; PLAYERS_COUNT]>>>,
 }
 
 impl<C: Concept> Table<C> {
@@ -43,13 +43,13 @@ impl<C: Concept> Table<C> {
                 supplemental_tiles: vec![],
                 reward_indication_tiles: vec![],
                 progress: Progress::get_initial(),
-                players: RefCell::new(None),
+                participants: RefCell::new(None),
             })))
     }
 
-    fn map_player(&self, player: (Rc<Box<dyn ActionPolicy<C>>>, Seat)) -> (Player<C>, Seat) {
+    fn map_player(&self, player: (Rc<Box<dyn ActionPolicy<C>>>, Seat)) -> Participant<C> {
         let self_ref = Rc::downgrade(&self.0.clone());
-        (Player::new(self_ref, player.0), player.1)
+        Participant { player: Player::new(self_ref, player.0), seat: player.1 }
     }
 
     fn join_users(&mut self, players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT]) {
@@ -63,14 +63,24 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.borrow_mut().players.replace(
+        self.borrow_mut().participants.replace(
             Some(players.iter().map(|(p, s)| self.map_player((p.clone(), *s))).collect())
         );
     }
 
+    fn start_game(&mut self, initial_point: i32) {
+        let table = self.borrow();
+        let mut participants = table.participants.borrow_mut();
+        if let Some(ref mut participants) = *participants {
+            for participant in participants.iter_mut() {
+                participant.player.set_initial_point(initial_point);
+            }
+        }
+    }
+
     fn deal_tiles(&mut self) {
         {
-            if self.borrow().players.borrow().is_none() {
+            if self.borrow().participants.borrow().is_none() {
                 panic!("Should call after join_users")
             }
         }
@@ -89,14 +99,12 @@ impl<C: Concept> Table<C> {
         table.wall_tiles = wall_tiles;
         table.supplemental_tiles = supplemental_tiles;
         table.reward_indication_tiles = reward_indication_tiles;
-        let mut players = table.players.borrow_mut();
-        if let Some(ref mut players) = *players {
+        let mut participants = table.participants.borrow_mut();
+        if let Some(ref mut participants) = *participants {
             for (tiles, seat) in player_tiles.iter() {
-                let position = players.iter().position(|(_, seat2)| seat2 == seat).unwrap();
-                let player = players.get_mut(position).unwrap();
-                player.0.concealed_tiles = tiles.clone();
-                player.0.exposed_melds = vec![];
-                player.0.discarded_tiles = vec![];
+                let position = participants.iter().position(|p| &p.seat == seat).unwrap();
+                let participant = participants.get_mut(position).unwrap();
+                participant.player.accept_deal(tiles.clone());
             }
         }
     }
@@ -131,6 +139,11 @@ impl Progress {
     }
 }
 
+struct Participant<C: Concept> {
+    player: Player<C>,
+    seat: Seat,
+}
+
 #[derive(Copy, Clone)]
 enum Round {
     East,
@@ -150,7 +163,7 @@ enum Seat {
 pub trait ActionPolicy<C: Concept> {}
 
 struct Player<C: Concept> {
-    point: u32,
+    point: i32,
     action_policy: Rc<Box<dyn ActionPolicy<C>>>,
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
@@ -168,6 +181,16 @@ impl<C: Concept> Player<C> {
             discarded_tiles: vec![],
             table,
         }
+    }
+
+    fn set_initial_point(&mut self, point: i32) {
+        self.point = point;
+    }
+
+    fn accept_deal(&mut self, tiles: Vec<C::Tile>) {
+        self.concealed_tiles = tiles;
+        self.exposed_melds = vec![];
+        self.discarded_tiles = vec![];
     }
 }
 
@@ -228,6 +251,7 @@ mod test {
         ];
 
         table.join_users(mock_user_seeds);
+        table.start_game(1000);
         table.deal_tiles();
     }
 }
