@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 pub trait Concept {
     type Tile;
@@ -8,16 +8,16 @@ pub trait Concept {
 
 pub trait TileDealingSpec<C: Concept> {}
 
-struct Table<'a, C: Concept> {
+struct Table<C: Concept> {
     tile_dealing_spec: Box<dyn TileDealingSpec<C>>,
     wall_tiles: Vec<C::Tile>,
     supplemental_tiles: Vec<C::Tile>,
     reward_indication_tiles: Vec<C::Tile>,
     progress: Progress,
-    players: Option<[(Player<'a, C>, Seat); 4]>,
+    players: Option<[(Player<C>, Seat); 4]>,
 }
 
-impl<C: Concept> Table<'_, C> {
+impl<C: Concept> Table<C> {
     pub fn new(tile_dealing_spec: Box<dyn TileDealingSpec<C>>) -> Table<C> {
         Table {
             tile_dealing_spec,
@@ -29,17 +29,18 @@ impl<C: Concept> Table<'_, C> {
         }
     }
 
-    fn map_player<'a>(table: Rc<&'a Table<'a, C>>, player: (Box<dyn ActionPolicy<C>>, Seat)) -> (Player<'a, C, >, Seat) {
-        (Player::new(table, player.0), player.1)
+    fn map_player(&self, player: (Box<dyn ActionPolicy<C>>, Seat)) -> (Player<C>, Seat) {
+        let self_ref = Rc::downgrade(Rc::new(self));
+        (Player::new(self_ref, player.0), player.1)
     }
 
-    pub fn join_users<'a>(&'a mut self, players: [(Box<dyn ActionPolicy<C>>, Seat); 4]) {
-        let table: Rc<&'a _> = Rc::new(self);
+    pub fn join_users(&mut self, players: [(Box<dyn ActionPolicy<C>>, Seat); 4]) {
+        let [player0, player1, player2, player3] = players;
         self.players = Some([
-            Table::map_player(table.clone(), players[0]),
-            Table::map_player(table.clone(), players[1]),
-            Table::map_player(table.clone(), players[2]),
-            Table::map_player(table.clone(), players[3]),
+            self.map_player(player0),
+            self.map_player(player1),
+            self.map_player(player2),
+            self.map_player(player3),
         ]);
     }
 }
@@ -77,17 +78,17 @@ enum Seat {
 
 pub trait ActionPolicy<C: Concept> {}
 
-struct Player<'a, C: Concept> {
+struct Player<C: Concept> {
     point: u32,
     action_policy: Box<dyn ActionPolicy<C>>,
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
     discarded_tiles: Vec<C::Tile>,
-    table: Rc<&'a Table<'a, C>>,
+    table: Weak<Table<C>>,
 }
 
-impl<C: Concept> Player<'_, C> {
-    fn new<'a>(table: Rc<&'a Table<C>>, action_policy: Box<dyn ActionPolicy<C>>) -> Player<'a, C> {
+impl<C: Concept> Player<C> {
+    fn new<'a>(table: Weak<Table<C>>, action_policy: Box<dyn ActionPolicy<C>>) -> Player<C> {
         Player {
             point: 0,
             action_policy,
