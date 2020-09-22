@@ -5,13 +5,13 @@ hide empty members
 
 package Game as "ゲーム" <<Package>> {
   package Concept {
-      abstract Tile as "牌 [Tile]"
-      abstract Meld as "面子" <Tile>
-      Tile <. Meld
+    abstract Tile as "牌 [Tile]"
+    abstract Meld as "面子" <Tile>
+    Tile <. Meld
 
-      abstract Action as "行動" <Tile>
-      Meld <. Action
-    }
+    abstract Action as "行動" <Tile>
+    Meld <. Action
+  }
 
   package {
     class Table as "**雀卓**" {
@@ -51,13 +51,8 @@ package Game as "ゲーム" <<Package>> {
     }
     Table <--> "1..*" Player: 通常4人
 
-    interface ActionAfterOtherPlayersActionPolicy as "他家行動後行動ポリシー"
-    Player -> ActionAfterOtherPlayersActionPolicy
-    ActionAfterOtherPlayersActionPolicy ..> Action
-
-    interface ActionAfterDrawingPolicy as "自摸後行動ポリシー"
-    Player -> ActionAfterDrawingPolicy
-    ActionAfterDrawingPolicy ..> Action
+    interface ActionPolicy as "行動ポリシー"
+    Player -> ActionPolicy
 
     class p_Hand as "手持牌" <Tile>
     Player --> "*" p_Hand: 通常14枚以下
@@ -150,16 +145,19 @@ package Rule as "ルール" <<Package>> {
 Rule --+ Game
 
 package Tactics as "戦術" <<Package>> {
+  class ActionPolicyImpl as "使用行動ポリシー"
+  ActionPolicyImpl --|> ActionPolicy
+
   class ActionAfterOtherPlayersActionPolicyImpl as "使用他家行動後行動ポリシー" {
     行動決定（？）: 他家行動後行動
   }
-  ActionAfterOtherPlayersActionPolicyImpl --|> ActionAfterOtherPlayersActionPolicy
+  ActionPolicyImpl --> ActionAfterOtherPlayersActionPolicyImpl
   ActionAfterOtherPlayersActionPolicyImpl ..> ActionImpl
 
   class ActionAfterDrawingPolicyImpl as "使用自摸後行動ポリシー" {
     行動決定(？): 自摸後行動
   }
-  ActionAfterDrawingPolicyImpl --|> ActionAfterDrawingPolicy
+  ActionPolicyImpl --> ActionAfterDrawingPolicyImpl
   ActionAfterDrawingPolicyImpl ..> ActionImpl
 }
 Tactics --+ Game
