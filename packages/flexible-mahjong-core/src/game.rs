@@ -91,17 +91,27 @@ impl<C: Concept> Table<C> {
         self.deal_tiles();
 
         let mut turn = starter;
-        let mut table = self.borrow_mut();
-        while let Some(tile) = table.wall_tiles.pop() {
-            let mut participants = table.participants.borrow_mut();
-            if let Some(ref mut participants) = *participants {
+        while let Some(tile) = self.borrow_mut().wall_tiles.pop() {
+            let table = self.borrow();
+            let participants = table.participants.borrow();
+            let turn =
+            if let Some(ref participants) = *participants {
                 let turn: u8 = turn.into();
-                let turn = participants.get_mut(turn as usize).unwrap();
+                participants.get(turn as usize).unwrap()
+            } else {
+                panic!()
+            };
 
-                let action = turn.player.handle_draw(tile);
-                unimplemented!()
-            }
+            let action = turn.player.handle_draw(tile);
+            unimplemented!()
+
         }
+
+        // loop {
+        //     if let Some(tile) = { self.borrow_mut().wall_tiles.pop() } {
+        //         let participants = self.borrow().bo
+        //     } else { break; }
+        // }
     }
 
     fn deal_tiles(&mut self) {
@@ -212,7 +222,9 @@ impl From<Seat> for u8 {
     }
 }
 
-pub trait ActionPolicy<C: Concept> {}
+pub trait ActionPolicy<C: Concept> {
+    fn action_after_draw(&self, drawn_tile: C::Tile) -> C::Action;
+}
 
 struct Player<C: Concept> {
     point: i32,
@@ -245,7 +257,10 @@ impl<C: Concept> Player<C> {
         self.discarded_tiles = vec![];
     }
 
-    fn handle_draw(&mut self, drawn_tile: C::Tile) -> C::Action {
+    fn handle_draw(&self, drawn_tile: C::Tile) -> C::Action {
+        let table = self.table.upgrade().unwrap();
+        let progress = table.borrow().progress;
+        self.action_policy.action_after_draw(drawn_tile);
         unimplemented!()
     }
 }
@@ -283,7 +298,11 @@ mod test {
 
     struct MockActionPolicy;
 
-    impl ActionPolicy<MockConcept> for MockActionPolicy {}
+    impl ActionPolicy<MockConcept> for MockActionPolicy {
+        fn action_after_draw(&self, drawn_tile: char) -> () {
+            unimplemented!()
+        }
+    }
 
     #[test]
     fn a() {
