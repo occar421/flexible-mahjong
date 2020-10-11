@@ -39,7 +39,7 @@ impl<C: Concept> Player<C> {
 
     pub(crate) fn draw(&self) -> Action<C> {
         let mut table = self.table.upgrade().unwrap();
-        // let drawn_tile = table.provide_new_tile();
+        let drawn_tile = table.borrow().provide_new_tile();
         // TODO 卓の状況をチェックして Policy が action を決める
         // let progress = table.read().unwrap().progress;
         // self.action_policy.action_after_draw(drawn_tile)
