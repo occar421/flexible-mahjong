@@ -47,7 +47,7 @@ impl<C: Concept> Table<C> {
             players
                 .iter()
                 .map(|(policy, seat)| Participant {
-                    player: Player::new(Rc::downgrade(&self.0.clone()), policy.clone()),
+                    player: Rc::new(Player::new(Rc::downgrade(&self.0.clone()), policy.clone())),
                     seat: *seat,
                 })
                 .sorted_by_key(|p| p.seat)
@@ -57,6 +57,14 @@ impl<C: Concept> Table<C> {
 }
 
 impl<C: Concept> TableContent<C> {
+    pub(crate) fn player_at(&self, seat: Seat) -> Rc<Player<C>> {
+        if let Some(ref participants) = *self.participants.borrow() {
+            participants.get(usize::from(seat)).unwrap().player.clone()
+        } else {
+            panic!();
+        }
+    }
+
     pub(crate) fn start_game(&self, initial_point: i32) {
         {
             if let Some(ref participants) = *self.participants.borrow() {
@@ -207,7 +215,7 @@ impl Progress {
 }
 
 struct Participant<C: Concept> {
-    player: Player<C>,
+    player: Rc<Player<C>>,
     seat: Seat,
 }
 

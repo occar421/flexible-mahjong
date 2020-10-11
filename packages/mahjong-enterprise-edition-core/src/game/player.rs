@@ -27,6 +27,10 @@ impl<C: Concept> Player<C> {
         }
     }
 
+    pub(crate) fn point(&self) -> i32 {
+        self.point.get()
+    }
+
     pub(crate) fn set_initial_point(&self, point: i32) {
         self.point.replace(point);
     }
