@@ -4,31 +4,30 @@ use crate::game::def::{
 use crate::game::player::Player;
 use arrayvec::ArrayVec;
 use itertools::Itertools;
-use std::borrow::BorrowMut;
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::sync::RwLock;
 
-pub(crate) struct Table<C: Concept>(Rc<RwLock<TableContent<C>>>);
+pub(crate) struct Table<C: Concept>(Rc<RefCell<TableContent<C>>>);
 
 pub(crate) struct TableContent<C: Concept> {
     tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
-    wall_tiles: Vec<C::Tile>,
-    supplemental_tiles: Vec<C::Tile>,
-    reward_indication_tiles: Vec<C::Tile>,
-    progress: Progress,
+    wall_tiles: RefCell<Vec<C::Tile>>,
+    supplemental_tiles: RefCell<Vec<C::Tile>>,
+    reward_indication_tiles: RefCell<Vec<C::Tile>>,
+    progress: Cell<Progress>,
     participants: RefCell<Option<ArrayVec<[Participant<C>; PLAYERS_COUNT]>>>,
 }
 
 impl<C: Concept> Table<C> {
-    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
-        Table(Rc::new(RwLock::new(TableContent {
+    pub(crate) fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
+        Table(Rc::new(RefCell::new(TableContent {
             tile_dealing_spec,
-            wall_tiles: vec![],
-            supplemental_tiles: vec![],
-            reward_indication_tiles: vec![],
-            progress: Progress::get_initial(),
+            wall_tiles: RefCell::new(vec![]),
+            supplemental_tiles: RefCell::new(vec![]),
+            reward_indication_tiles: RefCell::new(vec![]),
+            progress: Cell::new(Progress::get_initial()),
             participants: RefCell::new(None),
         })))
     }
@@ -47,22 +46,23 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.write().unwrap().participants.replace(Some(
+        self.participants.replace(Some(
             players
                 .iter()
                 .map(|(policy, seat)| Participant {
-                    player: Player::new(Rc::downgrade(&self.clone()), policy.clone()),
+                    player: Player::new(Rc::downgrade(&self.0.clone()), policy.clone()),
                     seat: *seat,
                 })
                 .sorted_by_key(|p| p.seat)
                 .collect(),
         ));
     }
+}
 
+impl<C: Concept> TableContent<C> {
     pub(crate) fn start_game(&mut self, initial_point: i32) {
         {
-            let table = self.read().unwrap();
-            let mut participants = table.participants.borrow_mut();
+            let mut participants = self.participants.borrow_mut();
             if let Some(ref mut participants) = *participants {
                 for participant in participants.iter_mut() {
                     participant.player.set_initial_point(initial_point);
@@ -72,57 +72,55 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.write().unwrap().progress = Progress::get_initial();
+        self.progress.replace(Progress::get_initial());
     }
 
     pub(crate) fn do_hand(&mut self) {
-        let starter: Seat = self.read().unwrap().progress.current_hand.1.into();
+        let starter: Seat = self.progress.get().current_hand.1.into();
 
         self.deal_tiles();
 
         let mut turn = starter;
 
         let result = loop {
-            let pop_result = { self.write().unwrap().wall_tiles.pop() };
-            if let Some(tile) = pop_result {
-                {
-                    let table = self.read().unwrap();
-                    let action = {
-                        let participants = table.participants.borrow();
-                        if let Some(ref participants) = *participants {
+            {
+                let action = {
+                    let participants = self.participants.borrow();
+                    if let Some(ref participants) = *participants {
+                        let turn: u8 = turn.into();
+                        let turn = participants.get(turn as usize).unwrap();
+                        turn.player.draw()
+                    } else {
+                        panic!()
+                    }
+                };
+
+                match action {
+                    Action::Discard(tile) => {
+                        // TODO 他家の鳴きなど
+
+                        if let Some(ref mut participants) = *self.participants.borrow_mut() {
                             let turn: u8 = turn.into();
-                            let turn = participants.get(turn as usize).unwrap();
-                            turn.player.draw()
+                            let turn = participants.get_mut(turn as usize).unwrap();
+                            turn.player.discard(tile, false);
                         } else {
                             panic!()
-                        }
-                    };
-
-                    match action {
-                        Action::Discard(tile) => {
-                            // TODO 他家の鳴きなど
-
-                            if let Some(ref mut participants) = *table.participants.borrow_mut() {
-                                let turn: u8 = turn.into();
-                                let turn = participants.get_mut(turn as usize).unwrap();
-                                turn.player.discard(tile, false);
-                            } else {
-                                panic!()
-                            };
-                        }
-                        _ => unimplemented!(),
+                        };
                     }
-                    // TODO action による分岐など
+                    _ => unimplemented!(),
                 }
-            } else {
-                break 1; // TODO 終局
+                // TODO action による分岐など
             }
         };
     }
 
+    pub(crate) fn provide_new_tile(&mut self) {
+        self.provide_new_tile();
+    }
+
     fn deal_tiles(&mut self) {
         {
-            if self.read().unwrap().participants.borrow().is_none() {
+            if self.participants.borrow().is_none() {
                 panic!("Should call after join_users")
             }
         }
@@ -132,7 +130,7 @@ impl<C: Concept> Table<C> {
             supplemental_tiles,
             reward_indication_tiles,
             player_tiles,
-        } = self.read().unwrap().tile_dealing_spec.deal();
+        } = self.tile_dealing_spec.deal();
 
         {
             let groups = player_tiles.iter().group_by(|(_, s)| s);
@@ -142,10 +140,12 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        let mut table = self.write().unwrap();
-        table.wall_tiles = wall_tiles;
-        table.supplemental_tiles = supplemental_tiles;
-        table.reward_indication_tiles = reward_indication_tiles;
+        let table = self;
+        table.wall_tiles.replace(wall_tiles);
+        table.supplemental_tiles.replace(supplemental_tiles);
+        table
+            .reward_indication_tiles
+            .replace(reward_indication_tiles);
         let mut participants = table.participants.borrow_mut();
         if let Some(ref mut participants) = *participants {
             for (i, (tiles, _)) in player_tiles.iter().sorted_by_key(|t| t.1).enumerate() {
@@ -157,16 +157,16 @@ impl<C: Concept> Table<C> {
 }
 
 impl<C: Concept> Deref for Table<C> {
-    type Target = Rc<RwLock<TableContent<C>>>;
+    type Target = TableContent<C>;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &*self.0.borrow()
     }
 }
 
 impl<C: Concept> DerefMut for Table<C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.0.borrow()
     }
 }
 

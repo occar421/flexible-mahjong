@@ -1,15 +1,15 @@
 mod def;
-mod table;
 mod player;
+mod table;
 
+pub(crate) use def::{ActionPolicy, Concept, DealtResult, Seat, TileDealingSpec};
 pub(crate) use table::Table;
-pub(crate) use def::{Concept, TileDealingSpec, DealtResult, Seat, ActionPolicy};
 
 #[cfg(test)]
 mod test {
-    use std::rc::Rc;
-    use crate::game::{Concept, TileDealingSpec, DealtResult, Seat, ActionPolicy, Table};
     use crate::game::def::Action;
+    use crate::game::{ActionPolicy, Concept, DealtResult, Seat, Table, TileDealingSpec};
+    use std::rc::Rc;
 
     struct MockConcept;
 
@@ -31,7 +31,8 @@ mod test {
                     (vec!['f'], Seat::South),
                     (vec!['g'], Seat::West),
                     (vec!['h'], Seat::North),
-                ])
+                ],
+            )
         }
     }
 

@@ -1,7 +1,7 @@
 use crate::game::def::{Action, ActionPolicy, Concept};
 use crate::game::table::TableContent;
+use std::cell::RefCell;
 use std::rc::{Rc, Weak};
-use std::sync::RwLock;
 
 pub(crate) struct Player<C: Concept> {
     point: i32,
@@ -9,12 +9,12 @@ pub(crate) struct Player<C: Concept> {
     concealed_tiles: Vec<C::Tile>,
     exposed_melds: Vec<C::Meld>,
     discarded_tiles: Vec<(C::Tile, bool)>,
-    table: Weak<RwLock<TableContent<C>>>,
+    table: Weak<RefCell<TableContent<C>>>,
 }
 
 impl<C: Concept> Player<C> {
-    pub fn new<'a>(
-        table: Weak<RwLock<TableContent<C>>>,
+    pub fn new(
+        table: Weak<RefCell<TableContent<C>>>,
         action_policy: Rc<Box<dyn ActionPolicy<C>>>,
     ) -> Player<C> {
         Player {
@@ -38,11 +38,12 @@ impl<C: Concept> Player<C> {
     }
 
     pub(crate) fn draw(&self) -> Action<C> {
-        let table = self.table.upgrade().unwrap();
-        table.read().unwrap();
+        let mut table = self.table.upgrade().unwrap();
+        // let drawn_tile = table.provide_new_tile();
         // TODO 卓の状況をチェックして Policy が action を決める
         // let progress = table.read().unwrap().progress;
-        self.action_policy.action_after_draw(drawn_tile)
+        // self.action_policy.action_after_draw(drawn_tile)
+        unimplemented!();
     }
 
     pub(crate) fn discard(&mut self, tile: C::Tile, used_in_meld: bool) {
