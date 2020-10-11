@@ -17,8 +17,8 @@ impl<C: Concept> DealtResult<C> {
         wall_tiles: Vec<C::Tile>,
         supplemental_tiles: Vec<C::Tile>,
         reward_indication_tiles: Vec<C::Tile>,
-        player_tiles: [(Vec<C::Tile>, Seat); PLAYERS_COUNT])
-        -> DealtResult<C> {
+        player_tiles: [(Vec<C::Tile>, Seat); PLAYERS_COUNT],
+    ) -> DealtResult<C> {
         DealtResult {
             wall_tiles,
             supplemental_tiles,
@@ -32,7 +32,6 @@ pub trait TileDealingSpec<C: Concept> {
     fn deal(&self) -> DealtResult<C>;
 }
 
-
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub(crate) enum Seat {
     East,
@@ -41,12 +40,45 @@ pub(crate) enum Seat {
     North,
 }
 
+impl Seat {
+    pub(crate) fn next_seat(&self) -> Seat {
+        ((usize::from(*self) + 1) % 4).into()
+    }
+}
+
+impl From<usize> for Seat {
+    fn from(value: usize) -> Self {
+        use Seat::*;
+
+        match value {
+            0 => East,
+            1 => South,
+            2 => West,
+            3 => North,
+            _ => panic!(format!("Invalid value: {}", value)),
+        }
+    }
+}
+
+impl From<Seat> for usize {
+    fn from(seat: Seat) -> Self {
+        use Seat::*;
+
+        match seat {
+            East => 0,
+            South => 1,
+            West => 2,
+            North => 3,
+        }
+    }
+}
+
 pub enum Action<C: Concept> {
     Discard(C::Tile),
     Pass,
     MakeMeld(C::Meld),
     DeclareReady(C::Tile),
-    DeclareCompletion
+    DeclareCompletion,
 }
 
 pub trait ActionPolicy<C: Concept> {

@@ -2,13 +2,15 @@ use crate::game::def::{
     Action, ActionPolicy, Concept, DealtResult, Seat, TileDealingSpec, PLAYERS_COUNT,
 };
 use crate::game::player::Player;
+use crate::game::table::HandResult::ExhaustiveDraw;
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::Rc;
 
-pub(crate) struct Table<C: Concept>(Rc<RefCell<TableContent<C>>>);
+pub(crate) struct Table<C: Concept>(Rc<TableContent<C>>);
 
 pub(crate) struct TableContent<C: Concept> {
     tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
@@ -20,21 +22,18 @@ pub(crate) struct TableContent<C: Concept> {
 }
 
 impl<C: Concept> Table<C> {
-    pub(crate) fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
-        Table(Rc::new(RefCell::new(TableContent {
+    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
+        Table(Rc::new(TableContent {
             tile_dealing_spec,
             wall_tiles: RefCell::new(vec![]),
             supplemental_tiles: RefCell::new(vec![]),
             reward_indication_tiles: RefCell::new(vec![]),
             progress: Cell::new(Progress::get_initial()),
             participants: RefCell::new(None),
-        })))
+        }))
     }
 
-    pub(crate) fn join_users(
-        &mut self,
-        players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT],
-    ) {
+    pub fn join_users(&self, players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT]) {
         let players = ArrayVec::from(players);
 
         {
@@ -45,7 +44,7 @@ impl<C: Concept> Table<C> {
             }
         }
 
-        self.0.borrow().participants.replace(Some(
+        self.0.participants.replace(Some(
             players
                 .iter()
                 .map(|(policy, seat)| Participant {
@@ -56,18 +55,10 @@ impl<C: Concept> Table<C> {
                 .collect(),
         ));
     }
-
-    pub(crate) fn start_game(&self, initial_point: i32) {
-        self.0.borrow().start_game(initial_point);
-    }
-
-    pub(crate) fn do_hand(&mut self) {
-        self.0.borrow().do_hand();
-    }
 }
 
 impl<C: Concept> TableContent<C> {
-    fn start_game(&self, initial_point: i32) {
+    pub(crate) fn start_game(&self, initial_point: i32) {
         {
             let mut participants = self.participants.borrow_mut();
             if let Some(ref mut participants) = *participants {
@@ -82,41 +73,50 @@ impl<C: Concept> TableContent<C> {
         self.progress.replace(Progress::get_initial());
     }
 
-    fn do_hand(&self) {
-        let starter: Seat = self.progress.get().current_hand.1.into();
-
+    pub(crate) fn do_hand(&self) {
         self.deal_tiles();
 
-        let mut turn = starter;
+        let dealer: Seat = self.progress.get().current_hand.1.into();
 
+        let mut turn = dealer;
         let result = loop {
-            let action = {
-                let participants = self.participants.borrow();
-                if let Some(ref participants) = *participants {
-                    let turn: u8 = turn.into();
-                    let turn = participants.get(turn as usize).unwrap();
-                    turn.player.draw()
-                } else {
-                    panic!()
-                }
-            };
-
-            match action {
-                Action::Discard(tile) => {
-                    // TODO 他家の鳴きなど
-
-                    if let Some(ref mut participants) = *self.participants.borrow_mut() {
-                        let turn: u8 = turn.into();
-                        let turn = participants.get_mut(turn as usize).unwrap();
-                        turn.player.discard(tile, false);
+            if self.wall_tiles.borrow().is_empty() {
+                break HandResult::ExhaustiveDraw;
+            } else {
+                let action = {
+                    if let Some(ref participants) = *self.participants.borrow() {
+                        let turn = participants.get(usize::from(turn)).unwrap();
+                        turn.player.draw()
                     } else {
                         panic!()
-                    };
+                    }
+                };
+
+                match action {
+                    Action::Discard(tile) => {
+                        // TODO 他家の鳴きなど
+                        let used_in_meld = false;
+
+                        if let Some(ref participants) = *self.participants.borrow() {
+                            let turn = participants.get(usize::from(turn)).unwrap();
+                            turn.player.append_to_discarded_tiles(tile, used_in_meld);
+                        } else {
+                            panic!()
+                        };
+
+                        turn = turn.next_seat();
+                    }
+                    // TODO action による分岐など
+                    _ => unimplemented!(),
                 }
-                _ => unimplemented!(),
             }
-            // TODO action による分岐など
         };
+
+        match result {
+            HandResult::ExhaustiveDraw => {
+                // TODO 流局処理
+            }
+        }
     }
 
     fn deal_tiles(&self) {
@@ -154,14 +154,22 @@ impl<C: Concept> TableContent<C> {
         }
     }
 
-    pub(crate) fn provide_new_tile(&self) -> Option<C::Tile> {
+    pub(crate) fn pop_new_tile(&self) -> Option<C::Tile> {
         self.wall_tiles.borrow_mut().pop()
+    }
+}
+
+impl<C: Concept> Deref for Table<C> {
+    type Target = Rc<TableContent<C>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
 #[derive(Copy, Clone)]
 struct Progress {
-    current_hand: (Round, u8),
+    current_hand: (Round, usize),
     deals_count: u8,
 }
 
@@ -187,29 +195,6 @@ enum Round {
     North,
 }
 
-impl From<u8> for Seat {
-    fn from(value: u8) -> Self {
-        use Seat::*;
-
-        match value {
-            0 => East,
-            1 => South,
-            2 => West,
-            3 => North,
-            _ => panic!(format!("Invalid value: {}", value)),
-        }
-    }
-}
-
-impl From<Seat> for u8 {
-    fn from(seat: Seat) -> Self {
-        use Seat::*;
-
-        match seat {
-            East => 0,
-            South => 1,
-            West => 2,
-            North => 3,
-        }
-    }
+enum HandResult {
+    ExhaustiveDraw,
 }
