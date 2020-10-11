@@ -1,1 +1,1 @@
-# flexible-mahjong
+# mahjong-enterprise-edition
