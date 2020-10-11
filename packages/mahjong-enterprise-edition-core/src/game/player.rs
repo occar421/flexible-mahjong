@@ -31,6 +31,14 @@ impl<C: Concept> Player<C> {
         self.point.replace(point);
     }
 
+    pub(crate) fn gain_point(&self, point: i32) {
+        self.point.replace(self.point.get() + point);
+    }
+
+    pub(crate) fn lose_point(&self, point: i32) {
+        self.point.replace(self.point.get() - point);
+    }
+
     pub(crate) fn accept_deal(&self, tiles: Vec<C::Tile>) {
         self.concealed_tiles.replace(tiles); // TODO 理牌？
         self.exposed_melds.replace(vec![]);

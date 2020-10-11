@@ -2,7 +2,6 @@ use crate::game::def::{
     Action, ActionPolicy, Concept, DealtResult, Seat, TileDealingSpec, PLAYERS_COUNT,
 };
 use crate::game::player::Player;
-use crate::game::table::HandResult::ExhaustiveDraw;
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::cell::Cell;
@@ -60,9 +59,8 @@ impl<C: Concept> Table<C> {
 impl<C: Concept> TableContent<C> {
     pub(crate) fn start_game(&self, initial_point: i32) {
         {
-            let mut participants = self.participants.borrow_mut();
-            if let Some(ref mut participants) = *participants {
-                for participant in participants.iter_mut() {
+            if let Some(ref participants) = *self.participants.borrow() {
+                for participant in participants.iter() {
                     participant.player.set_initial_point(initial_point);
                 }
             } else {
@@ -114,7 +112,34 @@ impl<C: Concept> TableContent<C> {
 
         match result {
             HandResult::ExhaustiveDraw => {
-                // TODO 流局処理
+                if let Some(ref participants) = *self.participants.borrow() {
+                    let personal_results = participants
+                        .iter()
+                        .map(|p| (p.seat, p.player.check_hand_ready()))
+                        .collect_vec();
+
+                    let n_ready = personal_results.iter().filter(|(_, b)| *b).count();
+                    let points_to_exchange = match n_ready {
+                        0 | 4 => (0, 0),
+                        1 => (3000, 1000),
+                        2 => (1500, 1500),
+                        3 => (1000, 3000),
+                        _ => panic!(),
+                    };
+
+                    for (seat, ready) in personal_results.iter() {
+                        let p = participants.get(usize::from(*seat)).unwrap();
+                        if *ready {
+                            p.player.gain_point(points_to_exchange.0);
+                        } else {
+                            p.player.lose_point(points_to_exchange.1);
+                        }
+                    }
+
+                // TODO 流局処理残り
+                } else {
+                    panic!()
+                }
             }
         }
     }
@@ -145,10 +170,9 @@ impl<C: Concept> TableContent<C> {
         self.supplemental_tiles.replace(supplemental_tiles);
         self.reward_indication_tiles
             .replace(reward_indication_tiles);
-        let mut participants = self.participants.borrow_mut();
-        if let Some(ref mut participants) = *participants {
+        if let Some(ref participants) = *self.participants.borrow() {
             for (i, (tiles, _)) in player_tiles.iter().sorted_by_key(|t| t.1).enumerate() {
-                let participant = participants.get_mut(i).unwrap();
+                let participant = participants.get(i).unwrap();
                 participant.player.accept_deal(tiles.clone());
             }
         }
