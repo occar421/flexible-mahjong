@@ -9,13 +9,13 @@ pub(crate) use def::{Concept, TileDealingSpec, DealtResult, Seat, ActionPolicy};
 mod test {
     use std::rc::Rc;
     use crate::game::{Concept, TileDealingSpec, DealtResult, Seat, ActionPolicy, Table};
+    use crate::game::def::Action;
 
     struct MockConcept;
 
     impl Concept for MockConcept {
         type Tile = char;
         type Meld = ();
-        type Action = ();
     }
 
     struct MockTileDealingSpec;
@@ -38,9 +38,8 @@ mod test {
     struct MockActionPolicy;
 
     impl ActionPolicy<MockConcept> for MockActionPolicy {
-        fn action_after_draw(&self, drawn_tile: char) -> () {
-            // unimplemented!()
-            ()
+        fn action_after_draw(&self, drawn_tile: char) -> Action<MockConcept> {
+            Action::Discard(drawn_tile)
         }
     }
 

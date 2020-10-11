@@ -8,9 +8,6 @@ package Game as "ゲーム" <<Package>> {
     abstract Tile as "牌 [Tile]"
     abstract Meld as "面子" <Tile>
     Tile <. Meld
-
-    abstract Action as "行動" <Tile>
-    Meld <. Action
   }
 
   package {
@@ -42,6 +39,22 @@ package Game as "ゲーム" <<Package>> {
       is公開: boolean
     }
     Table --> "*" RewardIndicationTiles: 通常4枚x2
+  }
+
+  package {
+      enum Action as "行動"
+      together {
+        class Discard as "打牌" <Tile>
+        Action -- Discard
+        class Pass as "無視"
+        Action -- Pass
+        class MakeMeld as "副露（広義）" <Tile>
+        Action -- MakeMeld
+        class DeclareReady as "立直" <Tile>
+        Action -- DeclareReady
+        class Complete as "上がり"
+        Action -- Complete
+      }
   }
 
   package {
@@ -80,20 +93,6 @@ package Rule as "ルール" <<Package>> {
 
       class Kong as "槓子" <Tile>
       MeldImpl -- Kong
-    }
-
-    enum ActionImpl as "使用行動"
-    together {
-      class MakePong as "ポン" <Tile>
-      ActionImpl -- MakePong
-      class MakeChow as "チー" <Tile>
-      ActionImpl -- MakeChow
-      class Ignore as "無視"
-      ActionImpl -- Ignore
-      class Complete as "上がり"
-      ActionImpl -- Complete
-      class Discard as "打牌" <Tile>
-      ActionImpl -- Discard
     }
   }
   UsingConcept --|> Concept
@@ -152,13 +151,13 @@ package Tactics as "戦術" <<Package>> {
     行動決定（？）: 他家行動後行動
   }
   ActionPolicyImpl --> ActionAfterOtherPlayersActionPolicyImpl
-  ActionAfterOtherPlayersActionPolicyImpl ..> ActionImpl
+  ActionAfterOtherPlayersActionPolicyImpl ..> Action
 
   class ActionAfterDrawingPolicyImpl as "使用自摸後行動ポリシー" {
     行動決定(？): 自摸後行動
   }
   ActionPolicyImpl --> ActionAfterDrawingPolicyImpl
-  ActionAfterDrawingPolicyImpl ..> ActionImpl
+  ActionAfterDrawingPolicyImpl ..> Action
 }
 Tactics --+ Game
 Tactics --+ Rule

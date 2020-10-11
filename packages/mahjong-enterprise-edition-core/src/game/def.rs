@@ -3,7 +3,6 @@ pub(crate) const PLAYERS_COUNT: usize = 4;
 pub trait Concept {
     type Tile: Copy;
     type Meld;
-    type Action;
 }
 
 pub struct DealtResult<C: Concept> {
@@ -42,6 +41,14 @@ pub(crate) enum Seat {
     North,
 }
 
+pub enum Action<C: Concept> {
+    Discard(C::Tile),
+    Pass,
+    MakeMeld(C::Meld),
+    DeclareReady(C::Tile),
+    DeclareCompletion
+}
+
 pub trait ActionPolicy<C: Concept> {
-    fn action_after_draw(&self, drawn_tile: C::Tile) -> C::Action;
+    fn action_after_draw(&self, drawn_tile: C::Tile) -> Action<C>;
 }
