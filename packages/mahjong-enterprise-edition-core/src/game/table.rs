@@ -32,11 +32,11 @@ impl Display for TableError {
 
 impl Error for TableError {}
 
-struct TableId(String); // TODO WIP uuid
+struct TableId(uuid::Uuid);
 
 impl TableId {
     fn generate() -> TableId {
-        TableId("foo".to_string())
+        TableId(uuid::Uuid::new_v4())
     }
 }
 
@@ -65,7 +65,7 @@ impl<C: Concept> RewardIndicationTiles<C> {
 }
 
 #[derive(Clone)]
-struct ParticipantId(String); // TODO WIP uuid and external
+struct ParticipantId(uuid::Uuid); // TODO make this external
 
 struct Participants(Vec<ParticipantId>);
 
