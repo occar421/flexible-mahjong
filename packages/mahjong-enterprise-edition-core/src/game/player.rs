@@ -1,6 +1,6 @@
 use crate::game::def::{Action, ActionPolicy, Concept};
 use crate::game::table::TableContent;
-use std::cell::{Cell, RefCell};
+use std::cell::{Cell, Ref, RefCell};
 use std::rc::{Rc, Weak};
 
 pub(crate) struct Player<C: Concept> {
@@ -29,6 +29,14 @@ impl<C: Concept> Player<C> {
 
     pub(crate) fn point(&self) -> i32 {
         self.point.get()
+    }
+
+    pub(crate) fn exposed_melds(&self) -> Ref<Vec<C::Meld>> {
+        self.exposed_melds.borrow()
+    }
+
+    pub(crate) fn discarded_tiles(&self) -> Ref<Vec<(C::Tile, bool)>> {
+        self.discarded_tiles.borrow()
     }
 
     pub(crate) fn set_initial_point(&self, point: i32) {

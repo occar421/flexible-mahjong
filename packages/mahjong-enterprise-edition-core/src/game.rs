@@ -3,12 +3,12 @@ mod player;
 mod table;
 
 pub(crate) use def::{ActionPolicy, Concept, DealtResult, Seat, TileDealingSpec};
-pub(crate) use table::Table;
+pub(crate) use table::TableOld;
 
 #[cfg(test)]
 mod test {
     use crate::game::def::Action;
-    use crate::game::{ActionPolicy, Concept, DealtResult, Seat, Table, TileDealingSpec};
+    use crate::game::{ActionPolicy, Concept, DealtResult, Seat, TableOld, TileDealingSpec};
     use std::rc::Rc;
 
     struct MockConcept;
@@ -51,7 +51,7 @@ mod test {
             Rc::new(spec)
         };
 
-        let mut table = Table::new(tile_dealing_spec);
+        let mut table = TableOld::new(tile_dealing_spec);
 
         let action_policy = {
             let policy: Box<dyn ActionPolicy<MockConcept>> = Box::new(MockActionPolicy {});
@@ -67,7 +67,7 @@ mod test {
 
         table.join_users(mock_user_seeds);
         table.start_game(1000);
-        table.do_hand();
+        table.do_hand(); // イテレータで止めながらやりたい
 
         assert_eq!(table.player_at(Seat::East).point(), 1000);
         assert_eq!(table.player_at(Seat::South).point(), 1000);

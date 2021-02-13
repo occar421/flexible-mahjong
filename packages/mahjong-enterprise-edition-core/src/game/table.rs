@@ -6,10 +6,135 @@ use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
+use std::error::Error;
+use std::fmt::Display;
 use std::ops::Deref;
 use std::rc::Rc;
 
-pub(crate) struct Table<C: Concept>(Rc<TableContent<C>>);
+#[derive(Debug)]
+enum TableError {
+    ParticipantsExceededError(u8),
+    UnknownParticipantError,
+}
+
+impl Display for TableError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::ParticipantsExceededError(limit) => {
+                write!(f, "ParticipantsExceededError: {}", limit)
+            }
+            Self::UnknownParticipantError => {
+                write!(f, "UnknownParticipantError")
+            }
+        }
+    }
+}
+
+impl Error for TableError {}
+
+struct TableId(String); // TODO WIP uuid
+
+impl TableId {
+    fn generate() -> TableId {
+        TableId("foo".to_string())
+    }
+}
+
+struct WallTiles<C: Concept>(Vec<C::Tile>);
+
+impl<C: Concept> WallTiles<C> {
+    fn empty() -> Self {
+        Self(vec![])
+    }
+}
+
+struct SupplementalTiles<C: Concept>(Vec<C::Tile>);
+
+impl<C: Concept> SupplementalTiles<C> {
+    fn empty() -> Self {
+        Self(vec![])
+    }
+}
+
+struct RewardIndicationTiles<C: Concept>(Vec<C::Tile>);
+
+impl<C: Concept> RewardIndicationTiles<C> {
+    fn empty() -> Self {
+        Self(vec![])
+    }
+}
+
+#[derive(Clone)]
+struct ParticipantId(String); // TODO WIP uuid and external
+
+struct Participants(Vec<ParticipantId>);
+
+static MAX_PARTICIPANT: u8 = 4; // TODO const generics
+
+impl Participants {
+    fn nobody() -> Self {
+        Self(vec![])
+    }
+
+    fn receive(self, new_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
+        (self.0.len() >= MAX_PARTICIPANT as usize)
+            .then(|| Self([self.0, vec![new_participant]].concat()))
+            .ok_or(TableError::ParticipantsExceededError(MAX_PARTICIPANT).into())
+    }
+
+    fn send_off(self, a_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
+        unimplemented!()
+    }
+}
+
+struct SeatingList(); // TODO map between ParticipantId and Seat
+
+impl SeatingList {
+    fn empty() -> Self {
+        Self()
+    }
+}
+
+pub(crate) struct Table<C: Concept> {
+    id: TableId,
+    wall_tiles: WallTiles<C>,
+    supplemental_tiles: SupplementalTiles<C>,
+    reward_indication_tiles: RewardIndicationTiles<C>,
+    progress: Progress, // TODO WIP
+    participants: Participants,
+    seating_list: SeatingList,
+}
+
+impl<C: Concept> Table<C> {
+    fn setup() -> Table<C> {
+        Table {
+            id: TableId::generate(),
+            wall_tiles: WallTiles::empty(),
+            supplemental_tiles: SupplementalTiles::empty(),
+            reward_indication_tiles: RewardIndicationTiles::empty(),
+            progress: Progress::initial(),
+            participants: Participants::nobody(),
+            seating_list: SeatingList::empty(),
+        }
+    }
+
+    fn accept_participant(self, new_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
+        Ok(Table {
+            participants: self.participants.receive(new_participant)?,
+            ..self
+        })
+    }
+
+    fn decide_initial_seating_according_to(self, seating_spec: ()) -> Self {
+        unimplemented!()
+    }
+}
+
+/**
+ * 以上、作り直し部分のおわり。
+ */
+
+pub(crate) struct TableOld<C: Concept>(Rc<TableContent<C>>);
 
 pub(crate) struct TableContent<C: Concept> {
     tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
@@ -17,12 +142,12 @@ pub(crate) struct TableContent<C: Concept> {
     supplemental_tiles: RefCell<Vec<C::Tile>>,
     reward_indication_tiles: RefCell<Vec<C::Tile>>,
     progress: Cell<Progress>,
-    participants: RefCell<Option<ArrayVec<[Participant<C>; PLAYERS_COUNT]>>>,
+    participants: RefCell<Option<ArrayVec<[ParticipantOld<C>; PLAYERS_COUNT]>>>,
 }
 
-impl<C: Concept> Table<C> {
-    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> Table<C> {
-        Table(Rc::new(TableContent {
+impl<C: Concept> TableOld<C> {
+    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> TableOld<C> {
+        TableOld(Rc::new(TableContent {
             tile_dealing_spec,
             wall_tiles: RefCell::new(vec![]),
             supplemental_tiles: RefCell::new(vec![]),
@@ -46,7 +171,7 @@ impl<C: Concept> Table<C> {
         self.0.participants.replace(Some(
             players
                 .iter()
-                .map(|(policy, seat)| Participant {
+                .map(|(policy, seat)| ParticipantOld {
                     player: Rc::new(Player::new(Rc::downgrade(&self.0.clone()), policy.clone())),
                     seat: *seat,
                 })
@@ -191,7 +316,7 @@ impl<C: Concept> TableContent<C> {
     }
 }
 
-impl<C: Concept> Deref for Table<C> {
+impl<C: Concept> Deref for TableOld<C> {
     type Target = Rc<TableContent<C>>;
 
     fn deref(&self) -> &Self::Target {
@@ -206,6 +331,13 @@ struct Progress {
 }
 
 impl Progress {
+    pub fn initial() -> Progress {
+        Progress {
+            current_hand: (Round::East, 1),
+            deals_count: 0,
+        }
+    }
+
     pub fn get_initial() -> Progress {
         Progress {
             current_hand: (Round::East, 1),
@@ -214,7 +346,7 @@ impl Progress {
     }
 }
 
-struct Participant<C: Concept> {
+struct ParticipantOld<C: Concept> {
     player: Rc<Player<C>>,
     seat: Seat,
 }
