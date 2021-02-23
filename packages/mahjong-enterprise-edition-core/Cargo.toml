@@ -12,3 +12,4 @@ edition = "2018"
 arrayvec = "0.5"
 itertools = "0.9"
 uuid = { version = "0.8", features = ["v4"] }
+thiserror = "1.0"

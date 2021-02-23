@@ -1,36 +1,185 @@
-use crate::game::def::{
-    Action, ActionPolicy, Concept, DealtResult, Seat, TileDealingSpec, PLAYERS_COUNT,
-};
-use crate::game::player::Player;
+use crate::game::def::{Action, Concept, DealtResult, SeatOld, TileDealingSpec, PLAYERS_COUNT};
+use crate::game::player::PlayerOld;
 use arrayvec::ArrayVec;
 use itertools::Itertools;
 use std::cell::Cell;
 use std::cell::RefCell;
-use std::error::Error;
-use std::fmt::Display;
-use std::ops::Deref;
+use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::rc::Rc;
+use thiserror::Error;
 
-#[derive(Debug)]
-enum TableError {
-    ParticipantsExceededError(u8),
-    UnknownParticipantError,
+struct WaitingTable<C: Concept> {
+    concept: PhantomData<C>,
+    id: TableId,
+    participants: Participants,
 }
 
-impl Display for TableError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::ParticipantsExceededError(limit) => {
-                write!(f, "ParticipantsExceededError: {}", limit)
-            }
-            Self::UnknownParticipantError => {
-                write!(f, "UnknownParticipantError")
-            }
+impl<C: Concept> WaitingTable<C> {
+    fn setup() -> Self {
+        Self {
+            id: TableId::generate(),
+            participants: Participants::nobody(),
+            concept: PhantomData,
+        }
+    }
+
+    fn accept_participant(self, new_participant: ParticipantId) -> Result<Self, TableError> {
+        Ok(Self {
+            participants: self.participants.receive(new_participant)?,
+            ..self
+        })
+    }
+
+    fn be_ready(self) -> Option<ReadyTable<C>> {
+        self.participants
+            .gathered()
+            .then(|| ReadyTable::<C>::setup(self.id, self.participants))
+    }
+}
+
+struct ReadyTable<C: Concept> {
+    concept: PhantomData<C>,
+    id: TableId,
+    participants: Participants,
+    seating_list: Option<SeatingList>,
+}
+
+impl<C: Concept> ReadyTable<C> {
+    fn setup(id: TableId, participants: Participants) -> Self {
+        Self {
+            id,
+            participants,
+            seating_list: None,
+            concept: PhantomData,
+        }
+    }
+
+    /// TODO accepts seating_spec
+    fn arrange_initial_seating(self) -> Self {
+        unimplemented!()
+    }
+
+    fn start_game(self) -> Option<HandPreparingTable<C>> {
+        if let Some(seating_list) = self.seating_list {
+            Some(HandPreparingTable::<C>::new(TableInfo::new(
+                self.id,
+                self.participants,
+                seating_list,
+            )))
+        } else {
+            None
         }
     }
 }
 
-impl Error for TableError {}
+// TODO name
+struct TableInfo<C: Concept> {
+    concept: PhantomData<C>,
+    id: TableId,
+    players: Players,
+    seating_list: SeatingList,
+}
+
+static INITIAL_POINT: u16 = 25000; // TODO const generics
+
+impl<C: Concept> TableInfo<C> {
+    fn new(id: TableId, participants: Participants, seating_list: SeatingList) -> Self {
+        Self {
+            concept: PhantomData,
+            id,
+            players: Players::form(participants, INITIAL_POINT),
+            seating_list,
+        }
+    }
+}
+
+// Round = 場
+// Hand  = 局
+
+struct HandPreparingTable<C: Concept> {
+    table_info: TableInfo<C>,
+    progress: Progress, // TODO WIP
+}
+
+impl<C: Concept> HandPreparingTable<C> {
+    fn new(table_info: TableInfo<C>) -> Self {
+        Self {
+            table_info,
+            progress: Progress::get_initial(),
+        }
+    }
+
+    // TODO accepts dealing_spec
+    fn deal(self) -> HandPlayingTable<C> {
+        unimplemented!()
+    }
+}
+
+struct HandPlayingTable<C: Concept> {
+    table_info: TableInfo<C>,
+    progress: Progress, // TODO WIP
+    turn: Turn,
+    wall_tiles: WallTiles<C>,
+    supplemental_tiles: SupplementalTiles<C>,
+    reward_indication_tiles: RewardIndicationTiles<C>,
+    players_hands: PlayersHands<C>,
+    players_discards: PlayersDiscards<C>,
+}
+
+impl<C: Concept> HandPlayingTable<C> {
+    // TODO name
+    fn something_new(
+        table_info: TableInfo<C>,
+        progress: Progress,
+        wall_tiles: WallTiles<C>,
+        supplemental_tiles: SupplementalTiles<C>,
+        reward_indication_tiles: RewardIndicationTiles<C>,
+        players_hands: PlayersHands<C>,
+    ) -> Self {
+        Self {
+            table_info,
+            progress,
+            turn: Turn::get_initial(),
+            wall_tiles,
+            supplemental_tiles,
+            reward_indication_tiles,
+            players_hands,
+            players_discards: PlayersDiscards::empty(),
+        }
+    }
+
+    // TODO care Error
+    fn draw_tile_by(self, participant_id: ParticipantId) -> Result<Self, TableError> {
+        let seat = self
+            .table_info
+            .seating_list
+            .get_seat_of(participant_id)
+            .ok_or(TableError::UnknownParticipantError)?;
+        if !self.turn.is_turn_of(seat) {
+            Err(TableError::NotParticipantsTurnError)?;
+        }
+
+        let (wall_tiles, _) = self
+            .wall_tiles
+            .pick()
+            .ok_or(TableError::ExhaustedWallError)?;
+        Ok(Self { wall_tiles, ..self }) // FIXME players tile
+    }
+}
+
+// TODO メソッド毎に細かく分ける
+#[derive(Error, Debug)]
+enum TableError {
+    #[error("")] // TODO
+    ParticipantsExceededError(u8),
+    #[error("")] // TODO
+    UnknownParticipantError,
+    #[error("")] // TODO
+    NotParticipantsTurnError,
+    #[error("")] // TODO
+    ExhaustedWallError,
+}
 
 struct TableId(uuid::Uuid);
 
@@ -40,31 +189,56 @@ impl TableId {
     }
 }
 
+struct Turn(Seat);
+
+impl Turn {
+    fn get_initial() -> Self {
+        Self(Seat::East)
+    }
+
+    fn is_turn_of(&self, seat: Seat) -> bool {
+        self.0 == seat
+    }
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum Seat {
+    East,
+    South,
+    West,
+    North,
+}
+
 struct WallTiles<C: Concept>(Vec<C::Tile>);
 
 impl<C: Concept> WallTiles<C> {
-    fn empty() -> Self {
-        Self(vec![])
+    fn pick(self) -> Option<(Self, C::Tile)> {
+        let mut this = self;
+        this.0.pop().map(|tile| (Self(this.0), tile))
     }
 }
 
 struct SupplementalTiles<C: Concept>(Vec<C::Tile>);
 
-impl<C: Concept> SupplementalTiles<C> {
-    fn empty() -> Self {
-        Self(vec![])
-    }
-}
-
 struct RewardIndicationTiles<C: Concept>(Vec<C::Tile>);
 
-impl<C: Concept> RewardIndicationTiles<C> {
+// TODO with consist of Closed Hand, Melds
+// TODO with condition （海底、槍槓）
+struct PlayerHand<C: Concept>(Vec<C::Tile>);
+
+struct PlayersHands<C: Concept>(HashMap<ParticipantId, PlayerHand<C>>);
+
+struct Discards<C: Concept>(Vec<C::Tile>);
+
+struct PlayersDiscards<C: Concept>(HashMap<ParticipantId, Discards<C>>);
+
+impl<C: Concept> PlayersDiscards<C> {
     fn empty() -> Self {
-        Self(vec![])
+        Self(HashMap::new())
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 struct ParticipantId(uuid::Uuid); // TODO make this external
 
 struct Participants(Vec<ParticipantId>);
@@ -76,65 +250,65 @@ impl Participants {
         Self(vec![])
     }
 
-    fn receive(self, new_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
+    fn receive(self, new_participant: ParticipantId) -> Result<Self, TableError> {
         (self.0.len() >= MAX_PARTICIPANT as usize)
             .then(|| Self([self.0, vec![new_participant]].concat()))
             .ok_or(TableError::ParticipantsExceededError(MAX_PARTICIPANT).into())
     }
 
-    fn send_off(self, a_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
+    fn send_off(self, a_participant: ParticipantId) -> Result<Self, TableError> {
         unimplemented!()
     }
-}
 
-struct SeatingList(); // TODO map between ParticipantId and Seat
-
-impl SeatingList {
-    fn empty() -> Self {
-        Self()
+    fn gathered(&self) -> bool {
+        // TODO 三麻
+        self.0.len() == MAX_PARTICIPANT as usize
     }
 }
 
-pub(crate) struct Table<C: Concept> {
-    id: TableId,
-    wall_tiles: WallTiles<C>,
-    supplemental_tiles: SupplementalTiles<C>,
-    reward_indication_tiles: RewardIndicationTiles<C>,
-    progress: Progress, // TODO WIP
-    participants: Participants,
-    seating_list: SeatingList,
+struct Player {
+    id: ParticipantId,
+    point: u16, // TODO use Point VO
 }
 
-impl<C: Concept> Table<C> {
-    fn setup() -> Table<C> {
-        Table {
-            id: TableId::generate(),
-            wall_tiles: WallTiles::empty(),
-            supplemental_tiles: SupplementalTiles::empty(),
-            reward_indication_tiles: RewardIndicationTiles::empty(),
-            progress: Progress::initial(),
-            participants: Participants::nobody(),
-            seating_list: SeatingList::empty(),
+impl Player {
+    // TODO name
+    fn something_new(id: ParticipantId, initial_point: u16) -> Self {
+        Self {
+            id,
+            point: initial_point,
         }
     }
+}
 
-    fn accept_participant(self, new_participant: ParticipantId) -> Result<Self, Box<dyn Error>> {
-        Ok(Table {
-            participants: self.participants.receive(new_participant)?,
-            ..self
-        })
+struct Players(Vec<Player>);
+
+impl Players {
+    // TODO name
+    fn form(participants: Participants, initial_point: u16) -> Self {
+        // TODO refactor
+        Self(
+            participants
+                .0
+                .iter()
+                .map(|p_id| Player::something_new(p_id.clone(), initial_point))
+                .collect(),
+        )
     }
+}
 
-    fn decide_initial_seating_according_to(self, seating_spec: ()) -> Self {
-        unimplemented!()
+#[derive(Clone)]
+struct SeatingList(HashMap<ParticipantId, Seat>);
+
+impl SeatingList {
+    fn get_seat_of(&self, participant_id: ParticipantId) -> Option<Seat> {
+        self.0.get(&participant_id).map(|s| *s)
     }
 }
 
 /**
  * 以上、作り直し部分のおわり。
  */
-
-pub(crate) struct TableOld<C: Concept>(Rc<TableContent<C>>);
 
 pub(crate) struct TableContent<C: Concept> {
     tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>,
@@ -145,44 +319,8 @@ pub(crate) struct TableContent<C: Concept> {
     participants: RefCell<Option<ArrayVec<[ParticipantOld<C>; PLAYERS_COUNT]>>>,
 }
 
-impl<C: Concept> TableOld<C> {
-    pub fn new(tile_dealing_spec: Rc<Box<dyn TileDealingSpec<C>>>) -> TableOld<C> {
-        TableOld(Rc::new(TableContent {
-            tile_dealing_spec,
-            wall_tiles: RefCell::new(vec![]),
-            supplemental_tiles: RefCell::new(vec![]),
-            reward_indication_tiles: RefCell::new(vec![]),
-            progress: Cell::new(Progress::get_initial()),
-            participants: RefCell::new(None),
-        }))
-    }
-
-    pub fn join_users(&self, players: [(Rc<Box<dyn ActionPolicy<C>>>, Seat); PLAYERS_COUNT]) {
-        let players = ArrayVec::from(players);
-
-        {
-            let groups = players.iter().group_by(|(_, s)| s);
-            let a = groups.into_iter().collect_vec();
-            if a.len() != PLAYERS_COUNT {
-                panic!("Wrong arg `players`: seats should be unique")
-            }
-        }
-
-        self.0.participants.replace(Some(
-            players
-                .iter()
-                .map(|(policy, seat)| ParticipantOld {
-                    player: Rc::new(Player::new(Rc::downgrade(&self.0.clone()), policy.clone())),
-                    seat: *seat,
-                })
-                .sorted_by_key(|p| p.seat)
-                .collect(),
-        ));
-    }
-}
-
 impl<C: Concept> TableContent<C> {
-    pub(crate) fn player_at(&self, seat: Seat) -> Rc<Player<C>> {
+    pub(crate) fn player_at(&self, seat: SeatOld) -> Rc<PlayerOld<C>> {
         if let Some(ref participants) = *self.participants.borrow() {
             participants.get(usize::from(seat)).unwrap().player.clone()
         } else {
@@ -207,7 +345,7 @@ impl<C: Concept> TableContent<C> {
     pub(crate) fn do_hand(&self) {
         self.deal_tiles();
 
-        let dealer: Seat = self.progress.get().current_hand.1.into();
+        let dealer: SeatOld = self.progress.get().current_hand.1.into();
 
         let mut turn = dealer;
         let result = loop {
@@ -316,14 +454,6 @@ impl<C: Concept> TableContent<C> {
     }
 }
 
-impl<C: Concept> Deref for TableOld<C> {
-    type Target = Rc<TableContent<C>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
 #[derive(Copy, Clone)]
 struct Progress {
     current_hand: (Round, usize),
@@ -347,8 +477,8 @@ impl Progress {
 }
 
 struct ParticipantOld<C: Concept> {
-    player: Rc<Player<C>>,
-    seat: Seat,
+    player: Rc<PlayerOld<C>>,
+    seat: SeatOld,
 }
 
 #[derive(Copy, Clone)]

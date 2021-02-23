@@ -9,7 +9,7 @@ pub struct DealtResult<C: Concept> {
     pub(crate) wall_tiles: Vec<C::Tile>,
     pub(crate) supplemental_tiles: Vec<C::Tile>,
     pub(crate) reward_indication_tiles: Vec<C::Tile>,
-    pub(crate) player_tiles: [(Vec<C::Tile>, Seat); PLAYERS_COUNT],
+    pub(crate) player_tiles: [(Vec<C::Tile>, SeatOld); PLAYERS_COUNT],
 }
 
 impl<C: Concept> DealtResult<C> {
@@ -17,7 +17,7 @@ impl<C: Concept> DealtResult<C> {
         wall_tiles: Vec<C::Tile>,
         supplemental_tiles: Vec<C::Tile>,
         reward_indication_tiles: Vec<C::Tile>,
-        player_tiles: [(Vec<C::Tile>, Seat); PLAYERS_COUNT],
+        player_tiles: [(Vec<C::Tile>, SeatOld); PLAYERS_COUNT],
     ) -> DealtResult<C> {
         DealtResult {
             wall_tiles,
@@ -33,22 +33,22 @@ pub trait TileDealingSpec<C: Concept> {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
-pub(crate) enum Seat {
+pub(crate) enum SeatOld {
     East,
     South,
     West,
     North,
 }
 
-impl Seat {
-    pub(crate) fn next_seat(&self) -> Seat {
+impl SeatOld {
+    pub(crate) fn next_seat(&self) -> SeatOld {
         ((usize::from(*self) + 1) % 4).into()
     }
 }
 
-impl From<usize> for Seat {
+impl From<usize> for SeatOld {
     fn from(value: usize) -> Self {
-        use Seat::*;
+        use SeatOld::*;
 
         match value {
             0 => East,
@@ -60,9 +60,9 @@ impl From<usize> for Seat {
     }
 }
 
-impl From<Seat> for usize {
-    fn from(seat: Seat) -> Self {
-        use Seat::*;
+impl From<SeatOld> for usize {
+    fn from(seat: SeatOld) -> Self {
+        use SeatOld::*;
 
         match seat {
             East => 0,

@@ -3,7 +3,7 @@ use crate::game::table::TableContent;
 use std::cell::{Cell, Ref, RefCell};
 use std::rc::{Rc, Weak};
 
-pub(crate) struct Player<C: Concept> {
+pub(crate) struct PlayerOld<C: Concept> {
     point: Cell<i32>,
     action_policy: Rc<Box<dyn ActionPolicy<C>>>,
     concealed_tiles: RefCell<Vec<C::Tile>>,
@@ -12,12 +12,12 @@ pub(crate) struct Player<C: Concept> {
     table: Weak<TableContent<C>>,
 }
 
-impl<C: Concept> Player<C> {
+impl<C: Concept> PlayerOld<C> {
     pub fn new(
         table: Weak<TableContent<C>>,
         action_policy: Rc<Box<dyn ActionPolicy<C>>>,
-    ) -> Player<C> {
-        Player {
+    ) -> PlayerOld<C> {
+        PlayerOld {
             point: Cell::new(0),
             action_policy,
             concealed_tiles: RefCell::new(vec![]),
