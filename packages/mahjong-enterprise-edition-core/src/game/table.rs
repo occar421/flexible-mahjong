@@ -151,19 +151,21 @@ impl<C: Concept> HandPlayingTable<C> {
 
     // TODO care Error
     fn draw_tile_by(self, participant_id: ParticipantId) -> Result<Self, TableError> {
+        // TODO この前提を独立したオブジェクトで表現する
+        if !self.is_turn_of(participant_id.clone())? {
+            Err(TableError::NotParticipantsTurnError)?;
+        }
+
         let seat = self
             .table_info
             .seating_list
-            .get_seat_of(participant_id)
-            .ok_or(TableError::UnknownParticipantError)?;
-        if !self.turn.is_turn_of(seat) {
-            Err(TableError::NotParticipantsTurnError)?;
-        }
+            .get_seat_of(participant_id.clone())
+            .unwrap();
 
         let (wall_tiles, drawn_tile) = self
             .wall_tiles
             .pick()
-            .ok_or(TableError::ExhaustedWallError)?;
+            .ok_or(TableError::WallExhaustedError)?;
         let hands = self
             .hands
             .append(drawn_tile)
@@ -174,6 +176,49 @@ impl<C: Concept> HandPlayingTable<C> {
             hands,
             ..self
         })
+    }
+
+    fn discard_tile_by(
+        self,
+        tile_index: TileIndex,
+        participant_id: ParticipantId,
+    ) -> Result<Self, TableError> {
+        // TODO この前提を独立したオブジェクトで表現する
+        if !self.is_turn_of(participant_id.clone())? {
+            Err(TableError::NotParticipantsTurnError)?;
+        }
+
+        let seat = self
+            .table_info
+            .seating_list
+            .get_seat_of(participant_id.clone())
+            .unwrap();
+
+        let (hands, discarded_tile) = self
+            .hands
+            .discard(tile_index)
+            .from_hand_of(seat)
+            .ok_or(TableError::UnknownError)?; // TODO use proper Error
+        let discards = self
+            .discards
+            .append(discarded_tile)
+            .to_hand_of(seat)
+            .ok_or(TableError::UnknownError)?;
+        Ok(Self {
+            hands,
+            discards,
+            ..self
+        })
+    }
+
+    fn is_turn_of(&self, participant_id: ParticipantId) -> Result<bool, TableError> {
+        let seat = self
+            .table_info
+            .seating_list
+            .get_seat_of(participant_id)
+            .ok_or(TableError::UnknownParticipantError)?;
+
+        Ok(!self.turn.is_turn_of(seat))
     }
 }
 
@@ -187,7 +232,7 @@ enum TableError {
     #[error("")] // TODO
     NotParticipantsTurnError,
     #[error("")] // TODO
-    ExhaustedWallError,
+    WallExhaustedError,
     #[error("")] // TODO
     UnknownError,
 }
@@ -256,6 +301,14 @@ impl<C: Concept> Hands<C> {
     fn append(self, tile: C::Tile) -> HandsAppendIntermediateState<C> {
         HandsAppendIntermediateState(self, tile)
     }
+
+    fn discard_tile_from(self, tile_index: TileIndex, seat: Seat) -> Option<(Self, C::Tile)> {
+        unimplemented!()
+    }
+
+    fn discard(self, tile_index: TileIndex) -> HandsDiscardIntermediateState<C> {
+        HandsDiscardIntermediateState(self, tile_index)
+    }
 }
 
 struct HandsAppendIntermediateState<C: Concept>(Hands<C>, C::Tile);
@@ -266,6 +319,14 @@ impl<C: Concept> HandsAppendIntermediateState<C> {
     }
 }
 
+struct HandsDiscardIntermediateState<C: Concept>(Hands<C>, TileIndex);
+
+impl<C: Concept> HandsDiscardIntermediateState<C> {
+    fn from_hand_of(self, seat: Seat) -> Option<(Hands<C>, C::Tile)> {
+        self.0.discard_tile_from(self.1, seat)
+    }
+}
+
 struct DiscardedTiles<C: Concept>(Vec<C::Tile>);
 
 struct Discards<C: Concept>(HashMap<Seat, DiscardedTiles<C>>);
@@ -273,6 +334,22 @@ struct Discards<C: Concept>(HashMap<Seat, DiscardedTiles<C>>);
 impl<C: Concept> Discards<C> {
     fn get_initial() -> Self {
         Self(HashMap::new())
+    }
+
+    fn append_tile_to(self, tile: C::Tile, seat: Seat) -> Option<Self> {
+        unimplemented!()
+    }
+
+    fn append(self, tile: C::Tile) -> DiscardsAppendIntermediateState<C> {
+        DiscardsAppendIntermediateState(self, tile)
+    }
+}
+
+struct DiscardsAppendIntermediateState<C: Concept>(Discards<C>, C::Tile);
+
+impl<C: Concept> DiscardsAppendIntermediateState<C> {
+    fn to_hand_of(self, seat: Seat) -> Option<Discards<C>> {
+        self.0.append_tile_to(self.1, seat)
     }
 }
 
@@ -343,6 +420,8 @@ impl SeatingList {
         self.0.get(&participant_id).map(|s| *s)
     }
 }
+
+struct TileIndex(u8);
 
 /**
  * 以上、作り直し部分のおわり。
