@@ -123,8 +123,8 @@ struct HandPlayingTable<C: Concept> {
     wall_tiles: WallTiles<C>,
     supplemental_tiles: SupplementalTiles<C>,
     reward_indication_tiles: RewardIndicationTiles<C>,
-    players_hands: PlayersHands<C>,
-    players_discards: PlayersDiscards<C>,
+    hands: Hands<C>,
+    discards: Discards<C>,
 }
 
 impl<C: Concept> HandPlayingTable<C> {
@@ -135,7 +135,7 @@ impl<C: Concept> HandPlayingTable<C> {
         wall_tiles: WallTiles<C>,
         supplemental_tiles: SupplementalTiles<C>,
         reward_indication_tiles: RewardIndicationTiles<C>,
-        players_hands: PlayersHands<C>,
+        hands: Hands<C>,
     ) -> Self {
         Self {
             table_info,
@@ -144,8 +144,8 @@ impl<C: Concept> HandPlayingTable<C> {
             wall_tiles,
             supplemental_tiles,
             reward_indication_tiles,
-            players_hands,
-            players_discards: PlayersDiscards::empty(),
+            hands,
+            discards: Discards::get_initial(),
         }
     }
 
@@ -160,11 +160,20 @@ impl<C: Concept> HandPlayingTable<C> {
             Err(TableError::NotParticipantsTurnError)?;
         }
 
-        let (wall_tiles, _) = self
+        let (wall_tiles, drawn_tile) = self
             .wall_tiles
             .pick()
             .ok_or(TableError::ExhaustedWallError)?;
-        Ok(Self { wall_tiles, ..self }) // FIXME players tile
+        let hands = self
+            .hands
+            .append(drawn_tile)
+            .to_hand_of(seat)
+            .ok_or(TableError::UnknownError)?;
+        Ok(Self {
+            wall_tiles,
+            hands,
+            ..self
+        })
     }
 }
 
@@ -179,6 +188,8 @@ enum TableError {
     NotParticipantsTurnError,
     #[error("")] // TODO
     ExhaustedWallError,
+    #[error("")] // TODO
+    UnknownError,
 }
 
 struct TableId(uuid::Uuid);
@@ -201,7 +212,7 @@ impl Turn {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 enum Seat {
     East,
     South,
@@ -224,16 +235,43 @@ struct RewardIndicationTiles<C: Concept>(Vec<C::Tile>);
 
 // TODO with consist of Closed Hand, Melds
 // TODO with condition （海底、槍槓）
-struct PlayerHand<C: Concept>(Vec<C::Tile>);
+#[derive(Clone)]
+struct Hand<C: Concept>(Vec<C::Tile>);
 
-struct PlayersHands<C: Concept>(HashMap<ParticipantId, PlayerHand<C>>);
+impl<C: Concept> Hand<C> {
+    fn append_tile(&mut self, tile: C::Tile) {
+        self.0.push(tile);
+    }
+}
 
-struct Discards<C: Concept>(Vec<C::Tile>);
+struct Hands<C: Concept>(HashMap<Seat, Hand<C>>);
 
-struct PlayersDiscards<C: Concept>(HashMap<ParticipantId, Discards<C>>);
+impl<C: Concept> Hands<C> {
+    fn append_tile_to(self, tile: C::Tile, seat: Seat) -> Option<Self> {
+        let mut this = self;
+        this.0.entry(seat).and_modify(|hand| hand.append_tile(tile));
+        Some(Self(this.0))
+    }
 
-impl<C: Concept> PlayersDiscards<C> {
-    fn empty() -> Self {
+    fn append(self, tile: C::Tile) -> HandsAppendIntermediateState<C> {
+        HandsAppendIntermediateState(self, tile)
+    }
+}
+
+struct HandsAppendIntermediateState<C: Concept>(Hands<C>, C::Tile);
+
+impl<C: Concept> HandsAppendIntermediateState<C> {
+    fn to_hand_of(self, seat: Seat) -> Option<Hands<C>> {
+        self.0.append_tile_to(self.1, seat)
+    }
+}
+
+struct DiscardedTiles<C: Concept>(Vec<C::Tile>);
+
+struct Discards<C: Concept>(HashMap<Seat, DiscardedTiles<C>>);
+
+impl<C: Concept> Discards<C> {
+    fn get_initial() -> Self {
         Self(HashMap::new())
     }
 }
